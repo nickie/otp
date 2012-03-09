@@ -841,3 +841,9 @@ bif erlang:finish_loading/1
 #
 
 bif erlang:hash/2
+
+#
+# !!! nickie plays here
+#
+bif erts_debug:size_shared/1
+bif 'erl.system.debug':size_shared/1	ebif_erts_debug_size_shared_1

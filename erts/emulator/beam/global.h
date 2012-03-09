@@ -928,6 +928,8 @@ Eterm copy_object(Eterm, Process*);
 #if HALFWORD_HEAP
 Uint size_object_rel(Eterm, Eterm*);
 #  define size_object(A) size_object_rel(A,NULL)
+Uint size_shared_rel(Eterm, Eterm*);
+#  define size_shared(A) size_shared_rel(A,NULL)
 
 Eterm copy_struct_rel(Eterm, Uint, Eterm**, ErlOffHeap*, Eterm* src_base, Eterm* dst_base);
 #  define copy_struct(OBJ,SZ,HPP,OH) copy_struct_rel(OBJ,SZ,HPP,OH, NULL,NULL)
@@ -939,6 +941,8 @@ Eterm copy_shallow_rel(Eterm*, Uint, Eterm**, ErlOffHeap*, Eterm* src_base);
 
 Uint size_object(Eterm);
 #  define size_object_rel(A,B) size_object(A)
+Uint size_shared(Eterm);
+#  define size_shared_rel(A,B) size_shared(A)
 
 Eterm copy_struct(Eterm, Uint, Eterm**, ErlOffHeap*);
 #  define copy_struct_rel(OBJ,SZ,HPP,OH, SB,DB) copy_struct(OBJ,SZ,HPP,OH)

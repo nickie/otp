@@ -17,6 +17,11 @@
  * %CopyrightEnd%
  */
 
+#ifdef DEBUG
+// !!! nickie: turn on assertions!
+#define NDEBUG 1
+#endif
+
 #ifdef HAVE_CONFIG_H
 #  include "config.h"
 #endif
@@ -100,7 +105,7 @@ Uint size_object(Eterm obj)
 	    obj = *ptr++;
 	    if (!IS_CONST(obj)) {
 		ESTACK_PUSH(s, obj);
-	    }	    
+	    }
 	    obj = *ptr;
 	    break;
 	case TAG_PRIMARY_BOXED:
@@ -189,6 +194,339 @@ Uint size_object(Eterm obj)
 	}
     }
 }
+
+/*
+ *  Machinery for sharing preserving information
+ */
+
+#define DECLARE_BITSTORE(s)						    \
+    DECLARE_WSTACK(s);							    \
+    int WSTK_CONCAT(s,_bitoffs) = 0;					    \
+    int WSTK_CONCAT(s,_offset) = 0;					    \
+    UWord WSTK_CONCAT(s,_buffer) = 0
+#define DESTROY_BITSTORE(s) DESTROY_WSTACK(s)
+#define BITSTORE_PUT(s,i)						    \
+do {									    \
+    WSTK_CONCAT(s,_buffer) |= i << WSTK_CONCAT(s,_bitoffs);		    \
+    WSTK_CONCAT(s,_bitoffs) += 2;					    \
+    if (WSTK_CONCAT(s,_bitoffs) >= sizeof(UWord)) {			    \
+	WSTACK_PUSH(s, WSTK_CONCAT(s,_buffer));				    \
+	WSTK_CONCAT(s,_bitoffs) = 0;					    \
+	WSTK_CONCAT(s,_buffer) = 0;					    \
+    }									    \
+} while(0)
+#define BITSTORE_RESET(s)						    \
+do {									    \
+    if (WSTK_CONCAT(s,_bitoffs) > 0) {					    \
+	WSTK_CONCAT(s,_buffer) <<= sizeof(UWord) - WSTK_CONCAT(s,_bitoffs); \
+	WSTACK_PUSH(s, WSTK_CONCAT(s,_buffer));				    \
+	WSTK_CONCAT(s,_bitoffs) = 0;					    \
+    }									    \
+    WSTK_CONCAT(s,_offset) = 0;						    \
+} while(0)
+#define BITSTORE_GET(s,i)						    \
+do {									    \
+    if (WSTK_CONCAT(s,_bitoffs) <= 0) {					    \
+	WSTK_CONCAT(s,_buffer) = WSTK_SUBSCRIPT(s, WSTK_CONCAT(s,_offset)); \
+	WSTK_CONCAT(s,_offset) += sizeof(UWord);			    \
+	WSTK_CONCAT(s,_bitoffs) = sizeof(UWord);			    \
+    }									    \
+    WSTK_CONCAT(s,_bitoffs) -= 2;					    \
+    (i) = (WSTK_CONCAT(s,_buffer) >> WSTK_CONCAT(s,_bitoffs)) & 3;	    \
+} while(0)
+
+#define DIRTY_BOXED ((Eterm) 1)
+
+
+/*
+ *  Return the real size of an object and find sharing information
+ */
+#if HALFWORD_HEAP
+Uint size_shared_rel(Eterm obj, Eterm* base)
+#else
+Uint size_shared(Eterm obj)
+#endif
+{
+    Eterm saved_obj = obj;
+    Uint sum = 0;
+    Eterm* ptr;
+
+    DECLARE_ESTACK(s);
+    DECLARE_BITSTORE(b);
+    for (;;) {
+	VERBOSE(DEBUG_NICKIE, ("visiting: %x ", obj));
+        switch (primary_tag(obj)) {
+	case TAG_PRIMARY_LIST: {
+	    Eterm head, tail;
+	    VERBOSE(DEBUG_NICKIE, ("L"));
+	    ptr = list_val_rel(obj, base);
+	    head = ptr[0];
+	    tail = ptr[1];
+	    /* if it's dirty, don't count it */
+	    if (primary_tag(tail) == TAG_PRIMARY_HEADER ||
+		primary_tag(head) == TAG_PRIMARY_HEADER) {
+		VERBOSE(DEBUG_NICKIE, ("!"));
+		goto pop_next;
+	    }
+	    /* else make it dirty now */
+	    switch (primary_tag(tail)) {
+	    case TAG_PRIMARY_LIST:
+		VERBOSE(DEBUG_NICKIE, ("/L"));
+		ptr[1] = (tail - TAG_PRIMARY_LIST) | TAG_PRIMARY_HEADER;
+		break;
+	    case TAG_PRIMARY_IMMED1:
+		VERBOSE(DEBUG_NICKIE, ("/I"));
+		ptr[0] = (head - primary_tag(head)) | TAG_PRIMARY_HEADER;
+		ptr[1] = (tail - TAG_PRIMARY_IMMED1) | primary_tag(head);
+		break;
+	    case TAG_PRIMARY_BOXED:
+		VERBOSE(DEBUG_NICKIE, ("/B saved %d", primary_tag(head)));
+		BITSTORE_PUT(b, primary_tag(head));
+		ptr[0] = (head - primary_tag(head)) | TAG_PRIMARY_HEADER;
+		ptr[1] = (tail - TAG_PRIMARY_BOXED) | TAG_PRIMARY_HEADER;
+		break;
+	    }
+	    /* and count it */
+	    sum += 2;
+	    if (!IS_CONST(head)) {
+		ESTACK_PUSH(s, head);
+	    }
+	    obj = tail;
+	    break;
+	}
+	case TAG_PRIMARY_BOXED: {
+	    Eterm hdr;
+	    VERBOSE(DEBUG_NICKIE, ("B"));
+	    ptr = boxed_val_rel(obj, base);
+	    hdr = ptr[0];
+	    /* if it's dirty, don't count it */
+	    if (hdr & DIRTY_BOXED) {
+		VERBOSE(DEBUG_NICKIE, ("!"));
+		goto pop_next;
+	    }
+	    /* else make it dirty now */
+	    ptr[0] = hdr | DIRTY_BOXED;
+	    /* and count it */
+	    ASSERT(is_header(hdr));
+	    switch (hdr & _TAG_HEADER_MASK) {
+	    case ARITYVAL_SUBTAG: {
+		int arity = header_arity(hdr);
+		VERBOSE(DEBUG_NICKIE, ("/T"));
+		sum += arity + 1;
+		if (arity == 0) { /* Empty tuple -- unusual. */
+		    VERBOSE(DEBUG_NICKIE, ("e"));
+		    goto pop_next;
+		}
+		while (arity-- > 1) {
+		    obj = *++ptr;
+		    if (!IS_CONST(obj)) {
+			ESTACK_PUSH(s, obj);
+		    }
+		}
+		obj = *++ptr;
+		break;
+	    }
+	    case FUN_SUBTAG: {
+		ErlFunThing* funp = (ErlFunThing *) ptr;
+		unsigned eterms = 1 /* creator */ + funp->num_free;
+		unsigned sz = thing_arityval(hdr);
+		VERBOSE(DEBUG_NICKIE, ("/F"));
+		sum += 1 /* header */ + sz + eterms;
+		ptr += 1 /* header */ + sz;
+		while (eterms-- > 1) {
+		    obj = *ptr++;
+		    if (!IS_CONST(obj)) {
+			ESTACK_PUSH(s, obj);
+		    }
+		}
+		obj = *ptr;
+		break;
+	    }
+	    case SUB_BINARY_SUBTAG: {
+		Eterm real_bin;
+		Uint bitsize;
+		Uint bitoffs;
+		Uint extra_bytes;
+		Eterm hdr;
+#if 0
+		ERTS_DECLARE_DUMMY(Uint offset); /* Not used. */
+		ERTS_GET_REAL_BIN_REL(obj, real_bin, offset, bitoffs, bitsize, base);
+#else
+		/* not using ERTS_GET_REAL_BIN_REL here
+		   because we need to forget if it's dirty */
+		ErlSubBin* _sb = (ErlSubBin *) ptr;
+		if ((_sb->thing_word & ~DIRTY_BOXED) == HEADER_SUB_BIN) {
+		    VERBOSE(DEBUG_NICKIE, ("/B1"));
+		    real_bin = _sb->orig;
+		    bitoffs = _sb->bitoffs;
+		    bitsize = _sb->bitsize;
+		} else {
+		    VERBOSE(DEBUG_NICKIE, ("/B2"));
+		    real_bin = obj;
+		    bitoffs = bitsize = 0;
+		}
+		/* end of ERTS_GET_REAL_BIN_REL */
+#endif
+		if ((bitsize + bitoffs) > 8) {
+		    sum += ERL_SUB_BIN_SIZE;
+		    extra_bytes = 2;
+		} else if ((bitsize + bitoffs) > 0) {
+		    sum += ERL_SUB_BIN_SIZE;
+		    extra_bytes = 1;
+		} else {
+		    extra_bytes = 0;
+		}
+#if 0
+		hdr = *binary_val_rel(real_bin, base);
+#else
+		/* this cannot be checked so easily */
+		ASSERT(is_boxed(rterm2wterm(real_bin, base)) &&
+		       (((*boxed_val(rterm2wterm(real_bin, base))) &
+			 (_TAG_HEADER_MASK - _BINARY_XXX_MASK - DIRTY_BOXED))
+			== _TAG_HEADER_REFC_BIN));
+		hdr = *_unchecked_binary_val(rterm2wterm(real_bin, base));
+		/* end of binary_val_rel */
+#endif
+		if (thing_subtag(hdr) == REFC_BINARY_SUBTAG) {
+		    sum += PROC_BIN_SIZE;
+		} else {
+		    sum += heap_bin_size(binary_size_rel(obj,base)+extra_bytes);
+		}
+		goto pop_next;
+	    }
+	    case BIN_MATCHSTATE_SUBTAG:
+		erl_exit(ERTS_ABORT_EXIT,
+			 "size_shared: matchstate term not allowed");
+	    default:
+		VERBOSE(DEBUG_NICKIE, ("/D"));
+		sum += thing_arityval(hdr) + 1;
+		goto pop_next;
+	    }
+	    break;
+	}
+	case TAG_PRIMARY_IMMED1:
+	    VERBOSE(DEBUG_NICKIE, ("I"));
+	pop_next:
+	    if (ESTACK_ISEMPTY(s)) {
+		goto cleanup;
+	    }
+	    obj = ESTACK_POP(s);
+	    break;
+	default:
+	    erl_exit(ERTS_ABORT_EXIT, "size_shared: bad tag for %#x\n", obj);
+	}
+	VERBOSE(DEBUG_NICKIE, ("\n"));
+    }
+
+cleanup:
+    VERBOSE(DEBUG_NICKIE, ("\n"));
+    obj = saved_obj;
+    BITSTORE_RESET(b);
+    for (;;) {
+	VERBOSE(DEBUG_NICKIE, ("revisiting: %x ", obj));
+        switch (primary_tag(obj)) {
+	case TAG_PRIMARY_LIST: {
+	    Eterm head, tail;
+	    VERBOSE(DEBUG_NICKIE, ("L"));
+	    ptr = list_val_rel(obj, base);
+	    head = ptr[0];
+	    tail = ptr[1];
+	    /* if not already clean, clean it up */
+	    if (primary_tag(tail) == TAG_PRIMARY_HEADER) {
+		if (primary_tag(head) == TAG_PRIMARY_HEADER) {
+		    Eterm saved;
+		    BITSTORE_GET(b, saved);
+		    VERBOSE(DEBUG_NICKIE, ("/B restoring %d", saved));
+		    ptr[0] = head = (head - TAG_PRIMARY_HEADER) | saved;
+		    ptr[1] = tail = (tail - TAG_PRIMARY_HEADER) | TAG_PRIMARY_BOXED;
+		} else {
+		    VERBOSE(DEBUG_NICKIE, ("/L"));
+		    ptr[1] = tail = (tail - TAG_PRIMARY_HEADER) | TAG_PRIMARY_LIST;
+		}
+	    } else if (primary_tag(head) == TAG_PRIMARY_HEADER) {
+		VERBOSE(DEBUG_NICKIE, ("/I"));
+		ptr[0] = head = (head - TAG_PRIMARY_HEADER) | primary_tag(tail);
+		ptr[1] = tail = (tail - primary_tag(tail)) | TAG_PRIMARY_IMMED1;
+	    } else {
+		VERBOSE(DEBUG_NICKIE, ("!"));
+		goto cleanup_next;
+	    }
+	    /* and its children too */
+	    if (!IS_CONST(head)) {
+		ESTACK_PUSH(s, head);
+	    }
+	    obj = tail;
+	    break;
+	}
+	case TAG_PRIMARY_BOXED: {
+	    Eterm hdr;
+	    VERBOSE(DEBUG_NICKIE, ("B"));
+	    ptr = boxed_val_rel(obj, base);
+	    hdr = ptr[0];
+	    /* if not already clean, clean it up */
+	    if (primary_tag(hdr) == TAG_PRIMARY_HEADER) {
+		goto cleanup_next;
+	    }
+	    else {
+		ASSERT(primary_tag(hdr) == DIRTY_BOXED);
+		ptr[0] = hdr = hdr - DIRTY_BOXED;
+	    }
+	    /* and its children too */
+	    switch (hdr & _TAG_HEADER_MASK) {
+	    case ARITYVAL_SUBTAG: {
+		int arity = header_arity(hdr);
+		if (arity == 0) { /* Empty tuple -- unusual. */
+		    goto cleanup_next;
+		}
+		while (arity-- > 1) {
+		    obj = *++ptr;
+		    if (!IS_CONST(obj)) {
+			ESTACK_PUSH(s, obj);
+		    }
+		}
+		obj = *++ptr;
+		break;
+	    }
+	    case FUN_SUBTAG: {
+		ErlFunThing* funp = (ErlFunThing *) ptr;
+		unsigned eterms = 1 /* creator */ + funp->num_free;
+		unsigned sz = thing_arityval(hdr);
+		ptr += 1 /* header */ + sz;
+		while (eterms-- > 1) {
+		    obj = *ptr++;
+		    if (!IS_CONST(obj)) {
+			ESTACK_PUSH(s, obj);
+		    }
+		}
+		obj = *ptr;
+		break;
+	    }
+	    default:
+		goto cleanup_next;
+	    }
+	    break;
+	}
+	case TAG_PRIMARY_IMMED1:
+	cleanup_next:
+	    if (ESTACK_ISEMPTY(s)) {
+		goto all_clean;
+	    }
+	    obj = ESTACK_POP(s);
+	    break;
+	default:
+	    erl_exit(ERTS_ABORT_EXIT, "size_shared: bad tag for %#x\n", obj);
+	}
+	VERBOSE(DEBUG_NICKIE, ("\n"));
+    }
+
+ all_clean:
+    VERBOSE(DEBUG_NICKIE, ("\n"));
+    /* Return the result */
+    DESTROY_ESTACK(s);
+    DESTROY_BITSTORE(b);
+    return sum;
+}
+
 
 /*
  *  Copy a structure to a heap.
@@ -301,7 +639,7 @@ Eterm copy_struct(Eterm obj, Uint sz, Eterm** hpp, ErlOffHeap* off_heap)
 			 "%s, line %d: Internal error in copy_struct: 0x%08x\n",
 			 __FILE__, __LINE__,obj);
 	    }
-	    
+
 	case TAG_PRIMARY_BOXED:
 	#if !HALFWORD_HEAP || defined(DEBUG)
 	    if (in_area(boxed_val_rel(obj,src_base),hstart,hsize)) {
@@ -374,7 +712,7 @@ Eterm copy_struct(Eterm obj, Uint sz, Eterm** hpp, ErlOffHeap* off_heap)
 			extra_bytes = 1;
 		    } else {
 			extra_bytes = 0;
-		    } 
+		    }
 		    real_size = size+extra_bytes;
 		    objp = binary_val_rel(real_bin,src_base);
 		    if (thing_subtag(*objp) == HEAP_BINARY_SUBTAG) {
@@ -389,7 +727,7 @@ Eterm copy_struct(Eterm obj, Uint sz, Eterm** hpp, ErlOffHeap* off_heap)
 		    } else {
 			ProcBin* from = (ProcBin *) objp;
 			ProcBin* to;
-			
+
 			ASSERT(thing_subtag(*objp) == REFC_BINARY_SUBTAG);
 			if (from->flags) {
 			    erts_emasculate_writable_binary(from);
@@ -489,7 +827,7 @@ Eterm copy_struct(Eterm obj, Uint sz, Eterm** hpp, ErlOffHeap* off_heap)
 	erl_exit(ERTS_ABORT_EXIT,
 		 "Internal error in copy_struct() when copying %T:"
 		 " htop=%p != hbot=%p (sz=%beu)\n",
-		 org_obj, htop, hbot, org_sz); 
+		 org_obj, htop, hbot, org_sz);
 #else
     if (htop > hbot) {
 	erl_exit(ERTS_ABORT_EXIT,
@@ -784,7 +1122,7 @@ Eterm copy_struct_lazy(Process *from, Eterm orig, Uint offs)
 		    extra_bytes = 0;
 		    sub_binary_heapneed = 0;
 		}
-		
+
 		real_size = size+extra_bytes;
                 objp = binary_val(real_bin);
                 if (thing_subtag(*objp) == HEAP_BINARY_SUBTAG) {
@@ -803,7 +1141,7 @@ Eterm copy_struct_lazy(Process *from, Eterm orig, Uint offs)
                 } else {
                     ProcBin *from_bin;
                     ProcBin *to_bin;
-                    
+
                     ASSERT(thing_subtag(*objp) == REFC_BINARY_SUBTAG);
 		    from_bin = (ProcBin *) objp;
 		    erts_refc_inc(&from_bin->val->refc, 2);
@@ -981,7 +1319,7 @@ Eterm copy_shallow(Eterm* ptr, Uint sz, Eterm** hpp, ErlOffHeap* off_heap)
 		{
 		    struct erl_off_heap_header* ohh = (struct erl_off_heap_header*)(hp-1);
 		    int tari = thing_arityval(val);
-		    
+
 		    sz -= tari;
 		    while (tari--) {
 			*hp++ = *tp++;
@@ -993,7 +1331,7 @@ Eterm copy_shallow(Eterm* ptr, Uint sz, Eterm** hpp, ErlOffHeap* off_heap)
 	    default:
 		{
 		    int tari = header_arity(val);
-    
+
 		    sz -= tari;
 		    while (tari--) {
 			*hp++ = *tp++;
@@ -1009,7 +1347,7 @@ Eterm copy_shallow(Eterm* ptr, Uint sz, Eterm** hpp, ErlOffHeap* off_heap)
     return res;
 }
 
-/* Move all terms in heap fragments into heap. The terms must be guaranteed to 
+/* Move all terms in heap fragments into heap. The terms must be guaranteed to
  * be contained within the fragments. The source terms are destructed with
  * move markers.
  * Typically used to copy a multi-fragmented message (from NIF).
@@ -1076,7 +1414,7 @@ move_one_frag(Eterm** hpp, Eterm* src, Uint src_sz, ErlOffHeap* off_heap)
 	if (is_header(val)) {
 	    struct erl_off_heap_header* hdr = (struct erl_off_heap_header*)hp;
 	    ASSERT(ptr + header_arity(val) < end);
-	    MOVE_BOXED(ptr, val, hp, &dummy_ref);	    
+	    MOVE_BOXED(ptr, val, hp, &dummy_ref);
 	    switch (val & _HEADER_SUBTAG_MASK) {
 	    case REFC_BINARY_SUBTAG:
 	    case FUN_SUBTAG:
@@ -1097,3 +1435,10 @@ move_one_frag(Eterm** hpp, Eterm* src, Uint src_sz, ErlOffHeap* off_heap)
     *hpp = hp;
 }
 
+/*
+Local Variables:
+  c-basic-offset: 4
+  c-indent-level: 4
+  indent-tabs-mode: t
+End:
+*/
