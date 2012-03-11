@@ -5,7 +5,7 @@
          show_printing_may_be_bad/0,
          mklist/1, mktuple/1, mkfunny/1, mkbin/1,
          mkimlist/1, mkimfunny/1, mkimfunny2/1, mkimfunny3/1,
-         mkcls/1,
+         mkimfunny4/1, mkimfunny5/1, mkcls/1,
          sz/1, sz/2,
          test/0, test/1, test/2, the_test/1
          ]).
@@ -105,10 +105,27 @@ mkimfunny3(M) -> X = mktuple(M div 2), Y = mkimfunny3(M-1), [Y, X, Y | X].
 
 mkimfunny4(0) -> {42};
 mkimfunny4(M) -> X = mkimfunny4(M-1), [M | X].
-     
+
+mkimfunny5(0) -> {42};
+mkimfunny5(M) -> X = mkimfunny5(M-1), Y = mkimfunny5(M div 2),
+                 case prime(M) of
+                     false -> [Y | X];
+                     true  -> {M, X}
+                 end.
+
+prime(N) when N < 2 -> false;
+prime(N) when N =< 3 -> true;
+prime(N) when (N rem 6 == 1) orelse (N rem 6 == 5) -> prime_chk(N, 5);
+prime(_) -> false.
+
+prime_chk(N, I) when I*I > N -> true;
+prime_chk(N, I) when N rem I == 0 -> false;
+prime_chk(N, I) when I rem 6 == 1 -> prime_chk(N, I+4);
+prime_chk(N, I) -> prime_chk(N, I+2).
+
 mkcls(0) -> 42;
 mkcls(M) -> X = mkcls(M-1), F = fun (N) -> [N, X, M, X] end, {X, F, F(M)}.
-     
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% From here on, you need the custom OTP (nickie's playground)
@@ -178,6 +195,6 @@ all_tests() ->
     [L0, L1, T1,
      mklist(10), mktuple(10), mkfunny(10),
      mkimfunny(20), mkimfunny2(20), mkimfunny3(20), mkimfunny4(1000),
-     mkcls(10),
+     mkimfunny5(50), mkcls(10),
      B1, B2, B3, T2, B4
     ].

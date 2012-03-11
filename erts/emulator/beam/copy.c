@@ -209,7 +209,7 @@ Uint size_object(Eterm obj)
 do {									    \
     WSTK_CONCAT(s,_buffer) |= i << WSTK_CONCAT(s,_bitoffs);		    \
     WSTK_CONCAT(s,_bitoffs) += 2;					    \
-    if (WSTK_CONCAT(s,_bitoffs) >= sizeof(UWord)) {			    \
+    if (WSTK_CONCAT(s,_bitoffs) >= 8*sizeof(UWord)) {			    \
 	WSTACK_PUSH(s, WSTK_CONCAT(s,_buffer));				    \
 	WSTK_CONCAT(s,_bitoffs) = 0;					    \
 	WSTK_CONCAT(s,_buffer) = 0;					    \
@@ -218,7 +218,6 @@ do {									    \
 #define BITSTORE_RESET(s)						    \
 do {									    \
     if (WSTK_CONCAT(s,_bitoffs) > 0) {					    \
-	WSTK_CONCAT(s,_buffer) <<= sizeof(UWord) - WSTK_CONCAT(s,_bitoffs); \
 	WSTACK_PUSH(s, WSTK_CONCAT(s,_buffer));				    \
 	WSTK_CONCAT(s,_bitoffs) = 0;					    \
     }									    \
@@ -229,10 +228,11 @@ do {									    \
     if (WSTK_CONCAT(s,_bitoffs) <= 0) {					    \
 	WSTK_CONCAT(s,_buffer) = WSTK_SUBSCRIPT(s, WSTK_CONCAT(s,_offset)); \
 	WSTK_CONCAT(s,_offset) += sizeof(UWord);			    \
-	WSTK_CONCAT(s,_bitoffs) = sizeof(UWord);			    \
+	WSTK_CONCAT(s,_bitoffs) = 8*sizeof(UWord);			    \
     }									    \
     WSTK_CONCAT(s,_bitoffs) -= 2;					    \
-    (i) = (WSTK_CONCAT(s,_buffer) >> WSTK_CONCAT(s,_bitoffs)) & 3;	    \
+    (i) = WSTK_CONCAT(s,_buffer) & 3;                                       \
+    WSTK_CONCAT(s,_buffer) >>= 2;                                           \
 } while(0)
 
 #define DIRTY_BOXED ((Eterm) 1)
