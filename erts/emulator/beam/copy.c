@@ -838,6 +838,18 @@ Eterm copy_struct(Eterm obj, Uint sz, Eterm** hpp, ErlOffHeap* off_heap)
     return res;
 }
 
+
+/*
+ *  Copy object "obj" to process "p" preserving sharing.
+ *  Does not really do that yet.
+ */
+Eterm
+copy_shared(Eterm obj, Process* to)
+{
+    return copy_object(obj, to);
+}
+
+
 #ifdef HYBRID
 
 #ifdef BM_MESSAGE_SIZES

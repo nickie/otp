@@ -3,11 +3,13 @@
          show_optim_destroys_sharing/0,
          show_send_destroys_sharing/0,
          show_printing_may_be_bad/0,
+         % show_compiler_crashes/0,
          mklist/1, mktuple/1, mkfunny/1, mkbin/1,
          mkimlist/1, mkimfunny/1, mkimfunny2/1, mkimfunny3/1,
          mkimfunny4/1, mkimfunny5/1, mkcls/1,
          sz/1, sz/2,
-         test/0, test/1, test/2, the_test/1
+         test/0, test/1, test/2, test/3, the_test/1,
+         paranoid/1
          ]).
 
 
@@ -45,6 +47,20 @@ show_optim_destroys_sharing() ->
     vanilla_sz(make_shared_wrong(), 100),
     io:format("be any different from this?~n", []),
     vanilla_sz(make_shared_right(), 100).
+
+%% show_compiler_crashes() ->
+%%     L0 = [0],
+%%     L1 = [L0, L0, L0, L0, L0, L0, L0, L0, L0, L0, L0, L0, L0, L0, L0, L0],
+%%     L2 = [L1, L1, L1, L1, L1, L1, L1, L1, L1, L1, L1, L1, L1, L1, L1, L1],
+%%     L3 = [L2, L2, L2, L2, L2, L2, L2, L2, L2, L2, L2, L2, L2, L2, L2, L2],
+%%     L4 = [L3, L3, L3, L3, L3, L3, L3, L3, L3, L3, L3, L3, L3, L3, L3, L3],
+%%     L5 = [L4, L4, L4, L4, L4, L4, L4, L4, L4, L4, L4, L4, L4, L4, L4, L4],
+%%     L6 = [L5, L5, L5, L5, L5, L5, L5, L5, L5, L5, L5, L5, L5, L5, L5, L5],
+%%     L7 = [L6, L6, L6, L6, L6, L6, L6, L6, L6, L6, L6, L6, L6, L6, L6, L6],
+%%     L8 = [L7, L7, L7, L7, L7, L7, L7, L7, L7, L7, L7, L7, L7, L7, L7, L7],
+%%     L9 = [L8, L8, L8, L8, L8, L8, L8, L8, L8, L8, L8, L8, L8, L8, L8, L8],
+%%     L10 = [L9, L9, L9, L9, L9, L9, L9, L9, L9, L9, L9, L9, L9, L9, L9, L9],
+%%     L10.
 
 
 % This shows that sending a message destroys sharing
@@ -166,20 +182,49 @@ sz(T, P) ->
 
 % Machinery for testing
 
-test() -> test(0, all_tests()).
+test() -> test(0, sz).
+     
+test(N) when is_integer(N) -> test(N, sz);
+test(Fun) -> test(0, all_tests(), Fun).
 
-test(N) -> test(N, all_tests()).
+test(N, Fun) -> test(N, all_tests(), Fun).
 
 the_test(N) -> lists:nth(N, all_tests()).
 
-test(From, To) when is_integer(From) andalso is_integer(To) ->
-    test(0, lists:sublist(all_tests(), From, To-From+1));
-test(0, []) -> ok;
-test(0, [T]) -> sz(T);
-test(0, [T|L]) -> sz(T), io:format("~n", []), test(0, L);
-test(1, [T|_]) -> sz(T);
-test(N, [_|L]) -> test(N-1, L).
+test(From, To, Fun) when is_integer(From) andalso is_integer(To) ->
+    test(0, lists:sublist(all_tests(), From, To-From+1), Fun);
+test(0, [], _) -> ok;
+test(0, [T], Fun) -> Fun(T);
+test(0, [T|L], Fun) -> Fun(T), io:format("~n", []), test(0, L);
+test(1, [T|_], Fun) -> Fun(T);
+test(N, [_|L], Fun) -> test(N-1, L, Fun).
 
+
+% Paranoid (concurrent) testing for off-heap data
+
+paranoid_tester(T, Sz) ->
+    NewSz = erts_debug:flat_size(T),
+    case NewSz == Sz of
+        true  -> paranoid_tester(T, Sz);
+        false -> io:format("It failed! ~80P~nsize was ~B~nnow is ~B~n",
+                           [T, 5, Sz, NewSz])
+    end.
+            
+paranoid(T) ->
+    Sz = erts_debug:flat_size(T),
+    Fun = fun () -> paranoid_tester(T, Sz) end,
+    Pids = lists:map(fun (_) -> spawn(Fun) end, lists:seq(1, 10)),
+    timer:sleep(1000),
+    X = erts_debug:size_shared(T),
+    timer:sleep(1000),
+    Y = erts_debug:size_shared(T),
+    timer:sleep(1000),
+    case X == Y of
+        true -> ok;
+        false -> io:format("sanity error: ~B and ~B~n", [X, Y])
+    end,
+    lists:foreach(fun (Pid) -> exit(Pid, kill) end, Pids).
+            
 
 % The tests
 
