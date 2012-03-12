@@ -260,8 +260,8 @@ Uint size_shared(Eterm obj)
 	    Eterm head, tail;
 	    VERBOSE(DEBUG_NICKIE, ("L"));
 	    ptr = list_val_rel(obj, base);
-	    head = ptr[0];
-	    tail = ptr[1];
+	    head = CAR(ptr);
+	    tail = CDR(ptr);
 	    /* if it's dirty, don't count it */
 	    if (primary_tag(tail) == TAG_PRIMARY_HEADER ||
 		primary_tag(head) == TAG_PRIMARY_HEADER) {
@@ -276,14 +276,14 @@ Uint size_shared(Eterm obj)
 		break;
 	    case TAG_PRIMARY_IMMED1:
 		VERBOSE(DEBUG_NICKIE, ("/I"));
-		ptr[0] = (head - primary_tag(head)) | TAG_PRIMARY_HEADER;
-		ptr[1] = (tail - TAG_PRIMARY_IMMED1) | primary_tag(head);
+		CAR(ptr) = (head - primary_tag(head)) | TAG_PRIMARY_HEADER;
+		CDR(ptr) = (tail - TAG_PRIMARY_IMMED1) | primary_tag(head);
 		break;
 	    case TAG_PRIMARY_BOXED:
 		VERBOSE(DEBUG_NICKIE, ("/B saved %d", primary_tag(head)));
 		BITSTORE_PUT(b, primary_tag(head));
-		ptr[0] = (head - primary_tag(head)) | TAG_PRIMARY_HEADER;
-		ptr[1] = (tail - TAG_PRIMARY_BOXED) | TAG_PRIMARY_HEADER;
+		CAR(ptr) = (head - primary_tag(head)) | TAG_PRIMARY_HEADER;
+		CDR(ptr) = (tail - TAG_PRIMARY_BOXED) | TAG_PRIMARY_HEADER;
 		break;
 	    }
 	    /* and count it */
@@ -298,14 +298,14 @@ Uint size_shared(Eterm obj)
 	    Eterm hdr;
 	    VERBOSE(DEBUG_NICKIE, ("B"));
 	    ptr = boxed_val_rel(obj, base);
-	    hdr = ptr[0];
+	    hdr = *ptr;
 	    /* if it's dirty, don't count it */
 	    if (hdr & DIRTY_BOXED) {
 		VERBOSE(DEBUG_NICKIE, ("!"));
 		goto pop_next;
 	    }
 	    /* else make it dirty now */
-	    ptr[0] = hdr | DIRTY_BOXED;
+	    *ptr = hdr | DIRTY_BOXED;
 	    /* and count it */
 	    ASSERT(is_header(hdr));
 	    switch (hdr & _TAG_HEADER_MASK) {
@@ -429,24 +429,24 @@ cleanup:
 	    Eterm head, tail;
 	    VERBOSE(DEBUG_NICKIE, ("L"));
 	    ptr = list_val_rel(obj, base);
-	    head = ptr[0];
-	    tail = ptr[1];
+	    head = CAR(ptr);
+	    tail = CDR(ptr);
 	    /* if not already clean, clean it up */
 	    if (primary_tag(tail) == TAG_PRIMARY_HEADER) {
 		if (primary_tag(head) == TAG_PRIMARY_HEADER) {
 		    Eterm saved;
 		    BITSTORE_GET(b, saved);
 		    VERBOSE(DEBUG_NICKIE, ("/B restoring %d", saved));
-		    ptr[0] = head = (head - TAG_PRIMARY_HEADER) | saved;
-		    ptr[1] = tail = (tail - TAG_PRIMARY_HEADER) | TAG_PRIMARY_BOXED;
+		    CAR(ptr) = head = (head - TAG_PRIMARY_HEADER) | saved;
+		    CDR(ptr) = tail = (tail - TAG_PRIMARY_HEADER) | TAG_PRIMARY_BOXED;
 		} else {
 		    VERBOSE(DEBUG_NICKIE, ("/L"));
 		    ptr[1] = tail = (tail - TAG_PRIMARY_HEADER) | TAG_PRIMARY_LIST;
 		}
 	    } else if (primary_tag(head) == TAG_PRIMARY_HEADER) {
 		VERBOSE(DEBUG_NICKIE, ("/I"));
-		ptr[0] = head = (head - TAG_PRIMARY_HEADER) | primary_tag(tail);
-		ptr[1] = tail = (tail - primary_tag(tail)) | TAG_PRIMARY_IMMED1;
+		CAR(ptr) = head = (head - TAG_PRIMARY_HEADER) | primary_tag(tail);
+		CDR(ptr) = tail = (tail - primary_tag(tail)) | TAG_PRIMARY_IMMED1;
 	    } else {
 		VERBOSE(DEBUG_NICKIE, ("!"));
 		goto cleanup_next;
@@ -462,14 +462,14 @@ cleanup:
 	    Eterm hdr;
 	    VERBOSE(DEBUG_NICKIE, ("B"));
 	    ptr = boxed_val_rel(obj, base);
-	    hdr = ptr[0];
+	    hdr = *ptr;
 	    /* if not already clean, clean it up */
 	    if (primary_tag(hdr) == TAG_PRIMARY_HEADER) {
 		goto cleanup_next;
 	    }
 	    else {
 		ASSERT(primary_tag(hdr) == DIRTY_BOXED);
-		ptr[0] = hdr = hdr - DIRTY_BOXED;
+		*ptr = hdr = hdr - DIRTY_BOXED;
 	    }
 	    /* and its children too */
 	    switch (hdr & _TAG_HEADER_MASK) {
