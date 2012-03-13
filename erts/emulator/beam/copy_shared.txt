@@ -1,0 +1,35 @@
+Assumptions:
+
+1. we have a table that will contain a few words for each shared object
+2. we are able to decide whether a ptr points to an entry in this table
+
+-----------------------------------------------------------------
+
+1. traverse the term and calculate the size;
+   when traversing, transform as you do in size_shared
+   but when you find shared objects:
+
+   a. add entry in the table, indexed by ptr
+
+   b. mark them:
+
+      b1. boxed terms, set header to (entry | 11)
+          store old header in the entry
+      b2. cons cells, set the HD part to (entry | HD)
+          store old ptr of HD part in the entry
+
+2. allocate new space
+
+3. traverse the term a second time
+   when traversing:
+
+   a. if the object is marked as shared
+
+      a1. if the entry contains a forwarding ptr, use that
+      a2. otherwise, copy it to the new space and store the
+          forwarding ptr to the entry
+
+   b. otherwise, reverse-transform as you do in size_shared
+      and copy to the new space
+
+4. traverse the table and reverse-transform all stored entries
