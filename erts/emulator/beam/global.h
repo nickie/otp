@@ -924,6 +924,7 @@ void erl_error(char*, va_list);
 /* copy.c */
 void init_copy(void);
 Eterm copy_object(Eterm, Process*);
+Eterm copy_shared(Eterm, Process*);
 
 #if HALFWORD_HEAP
 Uint size_object_rel(Eterm, Eterm*);

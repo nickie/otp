@@ -1,22 +1,15 @@
-Assumptions:
-
-1. we have a table that will contain a few words for each shared object
-2. we are able to decide whether a ptr points to an entry in this table
-
------------------------------------------------------------------
-
 1. traverse the term and calculate the size;
    when traversing, transform as you do in size_shared
    but when you find shared objects:
 
-   a. add entry in the table, indexed by ptr
+   a. add entry in the table, indexed by i
 
    b. mark them:
 
-      b1. boxed terms, set header to (entry | 11)
-          store old header in the entry
-      b2. cons cells, set the HD part to (entry | HD)
-          store old ptr of HD part in the entry
+      b1. boxed terms, set header to (i | 11)
+          store (old header, NONV, NULL, backptr) in the entry
+      b2. cons cells, set CDR to NONV, set CAR to i
+          store (old CAR, old CDR, NULL, backptr) in the entry
 
 2. allocate new space
 

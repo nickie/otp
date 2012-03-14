@@ -235,7 +235,10 @@ do {									    \
     WSTK_CONCAT(s,_buffer) >>= 2;                                           \
 } while(0)
 
-#define DIRTY_BOXED ((Eterm) 1)
+#define BOXED_VISITED_MASK       ((Eterm) 3)
+#define BOXED_VISITED            ((Eterm) 1)
+#define BOXED_SHARED_UNPROCESSED ((Eterm) 2)
+#define BOXED_SHARED_PROCESSED   ((Eterm) 3)
 
 
 /*
@@ -254,7 +257,7 @@ Uint size_shared(Eterm obj)
     DECLARE_ESTACK(s);
     DECLARE_BITSTORE(b);
     for (;;) {
-	VERBOSE(DEBUG_NICKIE, ("visiting: %x ", obj));
+	VERBOSE(DEBUG_NICKIE, ("[size] visiting: %x ", obj));
         switch (primary_tag(obj)) {
 	case TAG_PRIMARY_LIST: {
 	    Eterm head, tail;
@@ -262,13 +265,13 @@ Uint size_shared(Eterm obj)
 	    ptr = list_val_rel(obj, base);
 	    head = CAR(ptr);
 	    tail = CDR(ptr);
-	    /* if it's dirty, don't count it */
+	    /* if it's visited, don't count it */
 	    if (primary_tag(tail) == TAG_PRIMARY_HEADER ||
 		primary_tag(head) == TAG_PRIMARY_HEADER) {
 		VERBOSE(DEBUG_NICKIE, ("!"));
 		goto pop_next;
 	    }
-	    /* else make it dirty now */
+	    /* else make it visited now */
 	    switch (primary_tag(tail)) {
 	    case TAG_PRIMARY_LIST:
 		VERBOSE(DEBUG_NICKIE, ("/L"));
@@ -299,13 +302,13 @@ Uint size_shared(Eterm obj)
 	    VERBOSE(DEBUG_NICKIE, ("B"));
 	    ptr = boxed_val_rel(obj, base);
 	    hdr = *ptr;
-	    /* if it's dirty, don't count it */
-	    if (hdr & DIRTY_BOXED) {
+	    /* if it's visited, don't count it */
+	    if (primary_tag(hdr) != TAG_PRIMARY_HEADER) {
 		VERBOSE(DEBUG_NICKIE, ("!"));
 		goto pop_next;
 	    }
-	    /* else make it dirty now */
-	    *ptr = hdr | DIRTY_BOXED;
+	    /* else make it visited now */
+	    *ptr = (hdr - primary_tag(hdr)) + BOXED_VISITED;
 	    /* and count it */
 	    ASSERT(is_header(hdr));
 	    switch (hdr & _TAG_HEADER_MASK) {
@@ -353,9 +356,9 @@ Uint size_shared(Eterm obj)
 		ERTS_GET_REAL_BIN_REL(obj, real_bin, offset, bitoffs, bitsize, base);
 #else
 		/* not using ERTS_GET_REAL_BIN_REL here
-		   because we need to forget if it's dirty */
+		   because we need to forget if it's visited */
 		ErlSubBin* _sb = (ErlSubBin *) ptr;
-		if ((_sb->thing_word & ~DIRTY_BOXED) == HEADER_SUB_BIN) {
+		if ((_sb->thing_word & ~BOXED_VISITED_MASK) == HEADER_SUB_BIN) {
 		    VERBOSE(DEBUG_NICKIE, ("/B1"));
 		    real_bin = _sb->orig;
 		    bitoffs = _sb->bitoffs;
@@ -382,7 +385,7 @@ Uint size_shared(Eterm obj)
 		/* this cannot be checked so easily */
 		ASSERT(is_boxed(rterm2wterm(real_bin, base)) &&
 		       (((*boxed_val(rterm2wterm(real_bin, base))) &
-			 (_TAG_HEADER_MASK - _BINARY_XXX_MASK - DIRTY_BOXED))
+			 (_TAG_HEADER_MASK - _BINARY_XXX_MASK - BOXED_VISITED_MASK))
 			== _TAG_HEADER_REFC_BIN));
 		hdr = *_unchecked_binary_val(rterm2wterm(real_bin, base));
 		/* end of binary_val_rel */
@@ -423,7 +426,7 @@ cleanup:
     obj = saved_obj;
     BITSTORE_RESET(b);
     for (;;) {
-	VERBOSE(DEBUG_NICKIE, ("revisiting: %x ", obj));
+	VERBOSE(DEBUG_NICKIE, ("[size] revisiting: %x ", obj));
         switch (primary_tag(obj)) {
 	case TAG_PRIMARY_LIST: {
 	    Eterm head, tail;
@@ -468,8 +471,8 @@ cleanup:
 		goto cleanup_next;
 	    }
 	    else {
-		ASSERT(primary_tag(hdr) == DIRTY_BOXED);
-		*ptr = hdr = hdr - DIRTY_BOXED;
+		ASSERT(primary_tag(hdr) == BOXED_VISITED);
+		*ptr = hdr = hdr - BOXED_VISITED;
 	    }
 	    /* and its children too */
 	    switch (hdr & _TAG_HEADER_MASK) {
@@ -840,13 +843,414 @@ Eterm copy_struct(Eterm obj, Uint sz, Eterm** hpp, ErlOffHeap* off_heap)
 
 
 /*
+ *  Machinery for sharing preserving copy
+ */
+
+#define DECLARE_SHTABLE(s)						\
+    DECLARE_ESTACK(s);							\
+    Uint ESTK_CONCAT(s,_offset) = 0            /* offset in bytes */
+#define DESTROY_SHTABLE(s) DESTROY_ESTACK(s)
+#define SHTABLE_NEXT(s)	ESTK_CONCAT(s,_offset)
+#define SHTABLE_PUSH(s,x,y,b)						\
+do {									\
+    if (ESTK_CONCAT(s,_sp) > ESTK_CONCAT(s,_end) - 4) {			\
+	erl_grow_stack(&ESTK_CONCAT(s,_start), &ESTK_CONCAT(s,_sp),	\
+		&ESTK_CONCAT(s,_end));					\
+    }									\
+    *ESTK_CONCAT(s,_sp)++ = (x);					\
+    *ESTK_CONCAT(s,_sp)++ = (y);					\
+    *ESTK_CONCAT(s,_sp)++ = (Eterm) NULL;				\
+    *ESTK_CONCAT(s,_sp)++ = (Eterm) (b);	/* bad in HALF_WORD */	\
+    ESTK_CONCAT(s,_offset) += 4 * sizeof(Eterm);			\
+} while(0)
+#define SHTABLE_X(s,e) ESTK_SUBSCRIPT(s,e)
+#define SHTABLE_Y(s,e) ESTK_SUBSCRIPT(s,(e)+sizeof(Eterm))
+#define SHTABLE_FWD(s,e) ((Eterm *) ESTK_SUBSCRIPT(s,(e)+2*sizeof(Eterm)))
+#define SHTABLE_REV(s,e) ((Eterm *) ESTK_SUBSCRIPT(s,(e)+3*sizeof(Eterm)))
+
+#define LIST_SHARED_UNPROCESSED ((Eterm) 0)
+#define LIST_SHARED_PROCESSED   ((Eterm) 1)
+
+
+/*
  *  Copy object "obj" to process "p" preserving sharing.
- *  Does not really do that yet.
+ *  We do not support HALF_WORD (yet?).
  */
 Eterm
 copy_shared(Eterm obj, Process* to)
 {
-    return copy_object(obj, to);
+    Eterm saved_obj = obj;
+    Uint sum = 0;
+    Uint e;
+    Eterm* ptr;
+
+    DECLARE_ESTACK(s);
+    DECLARE_BITSTORE(b);
+    DECLARE_SHTABLE(t);
+
+    /* step #1:
+       -------------------------------------------------------
+       traverse the term and calculate the size;
+       when traversing, transform as you do in size_shared
+       but when you find shared objects:
+
+       a. add entry in the table, indexed by i
+       b. mark them:
+          b1. boxed terms, set header to (i | 11)
+              store (old header, NONV, NULL, backptr) in the entry
+          b2. cons cells, set CDR to NONV, set CAR to i
+              store (old CAR, old CDR, NULL, backptr) in the entry
+    */
+
+    for (;;) {
+	VERBOSE(DEBUG_NICKIE, ("[copy] visiting: %x ", obj));
+        switch (primary_tag(obj)) {
+	case TAG_PRIMARY_LIST: {
+	    Eterm head, tail;
+	    VERBOSE(DEBUG_NICKIE, ("L"));
+	    ptr = list_val_rel(obj, base);
+	    head = CAR(ptr);
+	    tail = CDR(ptr);
+	    /* if it's visited, don't count it;
+	       if not already shared, make it shared and store it in the table */
+	    if (primary_tag(tail) == TAG_PRIMARY_HEADER ||
+		primary_tag(head) == TAG_PRIMARY_HEADER) {
+		VERBOSE(DEBUG_NICKIE, ("!"));
+		if (tail != THE_NON_VALUE) {
+		    e = SHTABLE_NEXT(t);
+		    SHTABLE_PUSH(t, head, tail, ptr);
+		    CAR(ptr) = (e << _TAG_PRIMARY_SIZE) | LIST_SHARED_UNPROCESSED;
+		    CDR(ptr) = THE_NON_VALUE;
+		}
+		goto pop_next;
+	    }
+	    /* else make it visited now */
+	    switch (primary_tag(tail)) {
+	    case TAG_PRIMARY_LIST:
+		VERBOSE(DEBUG_NICKIE, ("/L"));
+		ptr[1] = (tail - TAG_PRIMARY_LIST) | TAG_PRIMARY_HEADER;
+		break;
+	    case TAG_PRIMARY_IMMED1:
+		VERBOSE(DEBUG_NICKIE, ("/I"));
+		CAR(ptr) = (head - primary_tag(head)) | TAG_PRIMARY_HEADER;
+		CDR(ptr) = (tail - TAG_PRIMARY_IMMED1) | primary_tag(head);
+		break;
+	    case TAG_PRIMARY_BOXED:
+		VERBOSE(DEBUG_NICKIE, ("/B saved %d", primary_tag(head)));
+		BITSTORE_PUT(b, primary_tag(head));
+		CAR(ptr) = (head - primary_tag(head)) | TAG_PRIMARY_HEADER;
+		CDR(ptr) = (tail - TAG_PRIMARY_BOXED) | TAG_PRIMARY_HEADER;
+		break;
+	    }
+	    /* and count it */
+	    sum += 2;
+	    if (!IS_CONST(head)) {
+		ESTACK_PUSH(s, head);
+	    }
+	    obj = tail;
+	    break;
+	}
+	case TAG_PRIMARY_BOXED: {
+	    Eterm hdr;
+	    VERBOSE(DEBUG_NICKIE, ("B"));
+	    ptr = boxed_val_rel(obj, base);
+	    hdr = *ptr;
+	    /* if it's visited, don't count it;
+	       if not already shared, make it shared and store it in the table */
+	    if (primary_tag(hdr) != TAG_PRIMARY_HEADER) {
+		VERBOSE(DEBUG_NICKIE, ("!"));
+		if (primary_tag(hdr) == BOXED_VISITED) {
+		    e = SHTABLE_NEXT(t);
+		    SHTABLE_PUSH(t, hdr, THE_NON_VALUE, ptr);
+		    *ptr = (e << _TAG_PRIMARY_SIZE) | BOXED_SHARED_UNPROCESSED;
+		}
+		goto pop_next;
+	    }
+	    /* else make it visited now */
+	    *ptr = (hdr - primary_tag(hdr)) + BOXED_VISITED;
+	    /* and count it */
+	    ASSERT(is_header(hdr));
+	    switch (hdr & _TAG_HEADER_MASK) {
+	    case ARITYVAL_SUBTAG: {
+		int arity = header_arity(hdr);
+		VERBOSE(DEBUG_NICKIE, ("/T"));
+		sum += arity + 1;
+		if (arity == 0) { /* Empty tuple -- unusual. */
+		    VERBOSE(DEBUG_NICKIE, ("e"));
+		    goto pop_next;
+		}
+		while (arity-- > 1) {
+		    obj = *++ptr;
+		    if (!IS_CONST(obj)) {
+			ESTACK_PUSH(s, obj);
+		    }
+		}
+		obj = *++ptr;
+		break;
+	    }
+	    case FUN_SUBTAG: {
+		ErlFunThing* funp = (ErlFunThing *) ptr;
+		unsigned eterms = 1 /* creator */ + funp->num_free;
+		unsigned sz = thing_arityval(hdr);
+		VERBOSE(DEBUG_NICKIE, ("/F"));
+		sum += 1 /* header */ + sz + eterms;
+		ptr += 1 /* header */ + sz;
+		while (eterms-- > 1) {
+		    obj = *ptr++;
+		    if (!IS_CONST(obj)) {
+			ESTACK_PUSH(s, obj);
+		    }
+		}
+		obj = *ptr;
+		break;
+	    }
+	    case SUB_BINARY_SUBTAG: {
+		Eterm real_bin;
+		Uint bitsize;
+		Uint bitoffs;
+		Uint extra_bytes;
+		Eterm hdr;
+#if 0
+		ERTS_DECLARE_DUMMY(Uint offset); /* Not used. */
+		ERTS_GET_REAL_BIN_REL(obj, real_bin, offset, bitoffs, bitsize, base);
+#else
+		/* not using ERTS_GET_REAL_BIN_REL here
+		   because we need to forget if it's visited */
+		ErlSubBin* _sb = (ErlSubBin *) ptr;
+		if ((_sb->thing_word & ~BOXED_VISITED_MASK) == HEADER_SUB_BIN) {
+		    VERBOSE(DEBUG_NICKIE, ("/B1"));
+		    real_bin = _sb->orig;
+		    bitoffs = _sb->bitoffs;
+		    bitsize = _sb->bitsize;
+		} else {
+		    VERBOSE(DEBUG_NICKIE, ("/B2"));
+		    real_bin = obj;
+		    bitoffs = bitsize = 0;
+		}
+		/* end of ERTS_GET_REAL_BIN_REL */
+#endif
+		if ((bitsize + bitoffs) > 8) {
+		    sum += ERL_SUB_BIN_SIZE;
+		    extra_bytes = 2;
+		} else if ((bitsize + bitoffs) > 0) {
+		    sum += ERL_SUB_BIN_SIZE;
+		    extra_bytes = 1;
+		} else {
+		    extra_bytes = 0;
+		}
+#if 0
+		hdr = *binary_val_rel(real_bin, base);
+#else
+		/* this cannot be checked so easily */
+		ASSERT(is_boxed(rterm2wterm(real_bin, base)) &&
+		       (((*boxed_val(rterm2wterm(real_bin, base))) &
+			 (_TAG_HEADER_MASK - _BINARY_XXX_MASK - BOXED_VISITED_MASK))
+			== _TAG_HEADER_REFC_BIN));
+		hdr = *_unchecked_binary_val(rterm2wterm(real_bin, base));
+		/* end of binary_val_rel */
+#endif
+		if (thing_subtag(hdr) == REFC_BINARY_SUBTAG) {
+		    sum += PROC_BIN_SIZE;
+		} else {
+		    sum += heap_bin_size(binary_size_rel(obj,base)+extra_bytes);
+		}
+		goto pop_next;
+	    }
+	    case BIN_MATCHSTATE_SUBTAG:
+		erl_exit(ERTS_ABORT_EXIT,
+			 "size_shared: matchstate term not allowed");
+	    default:
+		VERBOSE(DEBUG_NICKIE, ("/D"));
+		sum += thing_arityval(hdr) + 1;
+		goto pop_next;
+	    }
+	    break;
+	}
+	case TAG_PRIMARY_IMMED1:
+	    VERBOSE(DEBUG_NICKIE, ("I"));
+	pop_next:
+	    if (ESTACK_ISEMPTY(s)) {
+		goto alloc;
+	    }
+	    obj = ESTACK_POP(s);
+	    break;
+	default:
+	    erl_exit(ERTS_ABORT_EXIT, "size_shared: bad tag for %#x\n", obj);
+	}
+	VERBOSE(DEBUG_NICKIE, ("\n"));
+    }
+
+    /* step #2:
+       -------------------------------------------------------
+       allocate new space !!!
+    */
+
+alloc:
+    ;
+
+    /* step #3:
+       -------------------------------------------------------
+       traverse the term a second time and when traversing:
+       a. if the object is marked as shared
+          a1. if the entry contains a forwarding ptr, use that
+	  a2. otherwise, copy it to the new space and store the
+              forwarding ptr to the entry
+      b. otherwise, reverse-transform as you do in size_shared
+         and copy to the new space
+    */
+
+    VERBOSE(DEBUG_NICKIE, ("\n"));
+    obj = saved_obj;
+    BITSTORE_RESET(b);
+    for (;;) {
+	VERBOSE(DEBUG_NICKIE, ("[copy] revisiting: %x ", obj));
+        switch (primary_tag(obj)) {
+	case TAG_PRIMARY_LIST: {
+	    Eterm head, tail;
+	    VERBOSE(DEBUG_NICKIE, ("L"));
+	    ptr = list_val_rel(obj, base);
+	    head = CAR(ptr);
+	    tail = CDR(ptr);
+	    /* if it is shared */
+	    if (tail == THE_NON_VALUE) {
+		/* if it has been processed, skip it */
+		if (primary_tag(head) == LIST_SHARED_PROCESSED) {
+		    VERBOSE(DEBUG_NICKIE, ("!"));
+		    goto cleanup_next;
+		}
+		/* else, let's process it now */
+		else {
+		    e = head >> _TAG_PRIMARY_SIZE;
+		    VERBOSE(DEBUG_NICKIE, ("$"));
+		    CAR(ptr) = (head - primary_tag(head)) + LIST_SHARED_PROCESSED;
+		    head = SHTABLE_X(t, e);
+		    tail = SHTABLE_Y(t, e);
+		    ptr = &(SHTABLE_X(t, e));
+		}
+	    }
+	    /* if not already clean, clean it up */
+	    if (primary_tag(tail) == TAG_PRIMARY_HEADER) {
+		if (primary_tag(head) == TAG_PRIMARY_HEADER) {
+		    Eterm saved;
+		    BITSTORE_GET(b, saved);
+		    VERBOSE(DEBUG_NICKIE, ("/B restoring %d", saved));
+		    CAR(ptr) = head = (head - TAG_PRIMARY_HEADER) + saved;
+		    CDR(ptr) = tail = (tail - TAG_PRIMARY_HEADER) + TAG_PRIMARY_BOXED;
+		} else {
+		    VERBOSE(DEBUG_NICKIE, ("/L"));
+		    ptr[1] = tail = (tail - TAG_PRIMARY_HEADER) + TAG_PRIMARY_LIST;
+		}
+	    } else if (primary_tag(head) == TAG_PRIMARY_HEADER) {
+		VERBOSE(DEBUG_NICKIE, ("/I"));
+		CAR(ptr) = head = (head - TAG_PRIMARY_HEADER) | primary_tag(tail);
+		CDR(ptr) = tail = (tail - primary_tag(tail)) | TAG_PRIMARY_IMMED1;
+	    } else {
+		VERBOSE(DEBUG_NICKIE, ("!"));
+		goto cleanup_next;
+	    }
+	    /* and its children too */
+	    if (!IS_CONST(head)) {
+		ESTACK_PUSH(s, head);
+	    }
+	    obj = tail;
+	    break;
+	}
+	case TAG_PRIMARY_BOXED: {
+	    Eterm hdr;
+	    VERBOSE(DEBUG_NICKIE, ("B"));
+	    ptr = boxed_val_rel(obj, base);
+	    hdr = *ptr;
+	    /* clean it up, unless it's already clean or shared and processed */
+	    switch (primary_tag(hdr)) {
+	    case TAG_PRIMARY_HEADER:
+	    case BOXED_SHARED_PROCESSED:
+		VERBOSE(DEBUG_NICKIE, ("!"));
+		goto cleanup_next;
+	    case BOXED_SHARED_UNPROCESSED:
+		e = hdr >> _TAG_PRIMARY_SIZE;
+		VERBOSE(DEBUG_NICKIE, ("$"));
+		*ptr = (hdr - primary_tag(hdr)) + BOXED_SHARED_PROCESSED;
+		hdr = SHTABLE_X(t, e);
+		ASSERT(primary_tag(hdr) == BOXED_VISITED);
+		SHTABLE_X(t, e) = hdr = (hdr - BOXED_VISITED) + TAG_PRIMARY_HEADER;
+		break;
+	    case BOXED_VISITED:
+		*ptr = hdr = (hdr - BOXED_VISITED) + TAG_PRIMARY_HEADER;
+		break;
+	    }	    
+	    /* and its children too */
+	    switch (hdr & _TAG_HEADER_MASK) {
+	    case ARITYVAL_SUBTAG: {
+		int arity = header_arity(hdr);
+		if (arity == 0) { /* Empty tuple -- unusual. */
+		    goto cleanup_next;
+		}
+		while (arity-- > 1) {
+		    obj = *++ptr;
+		    if (!IS_CONST(obj)) {
+			ESTACK_PUSH(s, obj);
+		    }
+		}
+		obj = *++ptr;
+		break;
+	    }
+	    case FUN_SUBTAG: {
+		ErlFunThing* funp = (ErlFunThing *) ptr;
+		unsigned eterms = 1 /* creator */ + funp->num_free;
+		unsigned sz = thing_arityval(hdr);
+		ptr += 1 /* header */ + sz;
+		while (eterms-- > 1) {
+		    obj = *ptr++;
+		    if (!IS_CONST(obj)) {
+			ESTACK_PUSH(s, obj);
+		    }
+		}
+		obj = *ptr;
+		break;
+	    }
+	    default:
+		goto cleanup_next;
+	    }
+	    break;
+	}
+	case TAG_PRIMARY_IMMED1:
+	cleanup_next:
+	    if (ESTACK_ISEMPTY(s)) {
+		goto all_clean;
+	    }
+	    obj = ESTACK_POP(s);
+	    break;
+	default:
+	    erl_exit(ERTS_ABORT_EXIT, "size_shared: bad tag for %#x\n", obj);
+	}
+	VERBOSE(DEBUG_NICKIE, ("\n"));
+    }
+
+    /* step #4:
+       -------------------------------------------------------
+       traverse the table and reverse-transform all stored entries
+    */
+
+all_clean:
+    VERBOSE(DEBUG_NICKIE, ("\n"));
+    for (e = 0; e < SHTABLE_NEXT(t); e += 4*sizeof(Eterm)) {
+	ptr = SHTABLE_REV(t, e);
+	VERBOSE(DEBUG_NICKIE, ("[copy] restoring shared: %x\n", ptr));
+	/* entry was a list */
+	if (SHTABLE_Y(t, e) != THE_NON_VALUE) {
+	    CAR(ptr) = SHTABLE_X(t, e);
+	    CDR(ptr) = SHTABLE_Y(t, e);
+	}
+	/* entry was boxed */
+	else {
+	    *ptr = SHTABLE_X(t, e);
+	    ASSERT(primary_tag(*ptr) == TAG_PRIMARY_HEADER);
+	}
+    }
+    DESTROY_ESTACK(s);
+    DESTROY_BITSTORE(b);
+    DESTROY_SHTABLE(t);
+    return saved_obj;     /* !!! */
 }
 
 

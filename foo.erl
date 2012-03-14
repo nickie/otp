@@ -152,10 +152,11 @@ mkcls(M) -> X = mkcls(M-1), F = fun (N) -> [N, X, M, X] end, {X, F, F(M)}.
 
 sz(T) ->
     sz(T, 5).
-sz(T, P) ->
-    io:format("term: ~80P~n", [T, P]),
-    F = erts_debug:flat_size(T),
-    X = erts_debug:size(T),
+sz(TT, P) ->
+    io:format("term: ~80P~n", [TT, P]),
+    F = erts_debug:flat_size(TT),
+    X = erts_debug:size(TT),
+    T = erts_debug:copy_shared(TT),
     Y = erts_debug:size_shared(T),
     W = erts_debug:flat_size(T),
     Z = erts_debug:size(T),
@@ -182,9 +183,9 @@ sz(T, P) ->
 
 % Machinery for testing
 
-test() -> test(0, sz).
+test() -> test(0, fun sz/1).
      
-test(N) when is_integer(N) -> test(N, sz);
+test(N) when is_integer(N) -> test(N, fun sz/1);
 test(Fun) -> test(0, all_tests(), Fun).
 
 test(N, Fun) -> test(N, all_tests(), Fun).
