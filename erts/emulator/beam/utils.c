@@ -199,8 +199,9 @@ erl_grow_stack(Eterm** start, Eterm** sp, Eterm** end)
     *end = *start + new_size;
     *sp = *start + sp_offs;
 }
+
 /*
- * Helper function for the ESTACK macros defined in global.h.
+ * Helper function for the WSTACK macros defined in global.h.
  */
 void
 erl_grow_wstack(UWord** start, UWord** sp, UWord** end)
@@ -218,6 +219,31 @@ erl_grow_wstack(UWord** start, UWord** sp, UWord** end)
     *end = *start + new_size;
     *sp = *start + sp_offs;
 }
+
+/*
+ * Helper function for the EQUEUE macros defined in global.h.
+ */
+void
+erl_grow_queue(Eterm** start, Eterm** front, Eterm** back, Eterm** end)
+{
+    Uint old_size = (*end - *start);
+    Uint new_size = old_size * 2;
+    Uint first_part = (*end - *front);
+    Uint second_part = (*back - *start);
+    Eterm* new_ptr = erts_alloc(ERTS_ALC_T_ESTACK, new_size*sizeof(Eterm));
+    ASSERT(*back == *front);   // of course the queue is full now!
+    if (first_part > 0)
+      sys_memcpy(new_ptr, *front, first_part*sizeof(Eterm));
+    if (second_part > 0)
+      sys_memcpy(new_ptr+first_part, *start, second_part*sizeof(Eterm));
+    if (old_size != DEF_EQUEUE_SIZE)
+      erts_free(ERTS_ALC_T_ESTACK, *start);
+    *start = new_ptr;
+    *end = *start + new_size;
+    *front = *start;
+    *back = *start + old_size;
+}
+
 
 /* CTYPE macros */
 

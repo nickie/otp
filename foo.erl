@@ -196,7 +196,7 @@ test(From, To, Fun) when is_integer(From) andalso is_integer(To) ->
     test(0, lists:sublist(all_tests(), From, To-From+1), Fun);
 test(0, [], _) -> ok;
 test(0, [T], Fun) -> Fun(T);
-test(0, [T|L], Fun) -> Fun(T), io:format("~n", []), test(0, L);
+test(0, [T|L], Fun) -> Fun(T), io:format("~n", []), test(0, L, Fun);
 test(1, [T|_], Fun) -> Fun(T);
 test(N, [_|L], Fun) -> test(N-1, L, Fun).
 

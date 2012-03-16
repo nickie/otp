@@ -843,7 +843,7 @@ Eterm copy_struct(Eterm obj, Uint sz, Eterm** hpp, ErlOffHeap* off_heap)
 
 
 /*
- *  Machinery for sharing preserving copy
+ *  Machinery for the table used by the sharing preserving copier
  */
 
 #define DECLARE_SHTABLE(s)						\
@@ -884,7 +884,7 @@ copy_shared(Eterm obj, Process* to)
     Uint e;
     Eterm* ptr;
 
-    DECLARE_ESTACK(s);
+    DECLARE_EQUEUE(s);
     DECLARE_BITSTORE(b);
     DECLARE_SHTABLE(t);
 
@@ -945,7 +945,7 @@ copy_shared(Eterm obj, Process* to)
 	    /* and count it */
 	    sum += 2;
 	    if (!IS_CONST(head)) {
-		ESTACK_PUSH(s, head);
+		EQUEUE_PUT(s, head);
 	    }
 	    obj = tail;
 	    break;
@@ -982,7 +982,7 @@ copy_shared(Eterm obj, Process* to)
 		while (arity-- > 1) {
 		    obj = *++ptr;
 		    if (!IS_CONST(obj)) {
-			ESTACK_PUSH(s, obj);
+			EQUEUE_PUT(s, obj);
 		    }
 		}
 		obj = *++ptr;
@@ -998,7 +998,7 @@ copy_shared(Eterm obj, Process* to)
 		while (eterms-- > 1) {
 		    obj = *ptr++;
 		    if (!IS_CONST(obj)) {
-			ESTACK_PUSH(s, obj);
+			EQUEUE_PUT(s, obj);
 		    }
 		}
 		obj = *ptr;
@@ -1069,10 +1069,10 @@ copy_shared(Eterm obj, Process* to)
 	case TAG_PRIMARY_IMMED1:
 	    VERBOSE(DEBUG_NICKIE, ("I"));
 	pop_next:
-	    if (ESTACK_ISEMPTY(s)) {
+	    if (EQUEUE_ISEMPTY(s)) {
 		goto alloc;
 	    }
-	    obj = ESTACK_POP(s);
+	    EQUEUE_GET(s, obj);
 	    break;
 	default:
 	    erl_exit(ERTS_ABORT_EXIT, "size_shared: bad tag for %#x\n", obj);
@@ -1150,7 +1150,7 @@ alloc:
 	    }
 	    /* and its children too */
 	    if (!IS_CONST(head)) {
-		ESTACK_PUSH(s, head);
+		EQUEUE_PUT(s, head);
 	    }
 	    obj = tail;
 	    break;
@@ -1188,7 +1188,7 @@ alloc:
 		while (arity-- > 1) {
 		    obj = *++ptr;
 		    if (!IS_CONST(obj)) {
-			ESTACK_PUSH(s, obj);
+			EQUEUE_PUT(s, obj);
 		    }
 		}
 		obj = *++ptr;
@@ -1202,7 +1202,7 @@ alloc:
 		while (eterms-- > 1) {
 		    obj = *ptr++;
 		    if (!IS_CONST(obj)) {
-			ESTACK_PUSH(s, obj);
+			EQUEUE_PUT(s, obj);
 		    }
 		}
 		obj = *ptr;
@@ -1215,10 +1215,10 @@ alloc:
 	}
 	case TAG_PRIMARY_IMMED1:
 	cleanup_next:
-	    if (ESTACK_ISEMPTY(s)) {
+	    if (EQUEUE_ISEMPTY(s)) {
 		goto all_clean;
 	    }
-	    obj = ESTACK_POP(s);
+	    EQUEUE_GET(s, obj);
 	    break;
 	default:
 	    erl_exit(ERTS_ABORT_EXIT, "size_shared: bad tag for %#x\n", obj);
@@ -1247,7 +1247,7 @@ all_clean:
 	    ASSERT(primary_tag(*ptr) == TAG_PRIMARY_HEADER);
 	}
     }
-    DESTROY_ESTACK(s);
+    DESTROY_EQUEUE(s);
     DESTROY_BITSTORE(b);
     DESTROY_SHTABLE(t);
     return saved_obj;     /* !!! */

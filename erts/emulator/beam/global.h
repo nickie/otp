@@ -660,7 +660,7 @@ extern int bif_reductions;      /* reductions + fcalls (when doing call_bif) */
 extern int stackdump_on_exit;
 
 /*
- * Here is an implementation of a lightweiht stack.
+ * Here is an implementation of a lightweight stack.
  *
  * Use it like this:
  *
@@ -785,6 +785,73 @@ do {									\
 
 #define WSTACK_ISEMPTY(s) (WSTK_CONCAT(s,_sp) == WSTK_CONCAT(s,_start))
 #define WSTACK_POP(s) (*(--WSTK_CONCAT(s,_sp)))
+
+
+/*
+ *  A lightweight manipulation of unbounded queues,
+ *  using a circular dynamic array.
+ *
+ *  Use it like this:
+ *
+ *  DECLARE_EQUEUE(Queue)	(At the start of a block)
+ *  ...
+ *  EQUEUE_PUT(Queue, Term)
+ *  ...
+ *  if (EQUEUE_ISEMPTY(Queue)) {
+ *     Queue is empty
+ *  } else {
+ *     EQUEUE_GET(Stack, Term);
+ *     Process popped Term here
+ *  }
+ *  ...
+ *  DESTROY_EQUEUE(Queue)
+ */
+
+void erl_grow_queue(Eterm** start, Eterm** front, Eterm** back, Eterm** end);
+#define EQUE_CONCAT(a,b) a##b
+#define DEF_EQUEUE_SIZE (16)
+
+#define DECLARE_EQUEUE(s)						\
+    Eterm  EQUE_CONCAT(s,_default_queue)[DEF_EQUEUE_SIZE];		\
+    Eterm* EQUE_CONCAT(s,_start) = EQUE_CONCAT(s,_default_queue);	\
+    Eterm* EQUE_CONCAT(s,_front) = EQUE_CONCAT(s,_start);		\
+    Eterm* EQUE_CONCAT(s,_back) = EQUE_CONCAT(s,_start);		\
+    int    EQUE_CONCAT(s,_possibly_empty) = 1;				\
+    Eterm* EQUE_CONCAT(s,_end) = EQUE_CONCAT(s,_start) + DEF_EQUEUE_SIZE
+
+#define DESTROY_EQUEUE(s)						\
+do {									\
+    if (EQUE_CONCAT(s,_start) != EQUE_CONCAT(s,_default_queue)) {	\
+	erts_free(ERTS_ALC_T_ESTACK, EQUE_CONCAT(s,_start));		\
+    }									\
+} while(0)
+
+#define EQUEUE_PUT(s, x)						\
+do {									\
+    if (EQUE_CONCAT(s,_back) == EQUE_CONCAT(s,_front) &&                \
+        !EQUE_CONCAT(s,_possibly_empty)) {                              \
+	erl_grow_queue(&EQUE_CONCAT(s,_start), &EQUE_CONCAT(s,_front),	\
+	               &EQUE_CONCAT(s,_back), &EQUE_CONCAT(s,_end));    \
+    }									\
+    EQUE_CONCAT(s,_possibly_empty) = 0;					\
+    *EQUE_CONCAT(s,_back) = (x);					\
+    if (++EQUE_CONCAT(s,_back) == EQUE_CONCAT(s,_end)) {		\
+        EQUE_CONCAT(s,_back) = EQUE_CONCAT(s,_start);			\
+    }                                                                   \
+} while(0)
+
+#define EQUEUE_ISEMPTY(s)                               		\
+  (EQUE_CONCAT(s,_back) == EQUE_CONCAT(s,_front) &&                     \
+    EQUE_CONCAT(s,_possibly_empty))
+
+#define EQUEUE_GET(s, x)                                           	\
+do {                                                                  	\
+    EQUE_CONCAT(s,_possibly_empty) = 1;                                 \
+    (x) = *EQUE_CONCAT(s,_front);                                       \
+    if (++EQUE_CONCAT(s,_front) == EQUE_CONCAT(s,_end)) {		\
+        EQUE_CONCAT(s,_front) = EQUE_CONCAT(s,_start);			\
+    }                                                                   \
+} while(0)
 
 
 /* port status flags */

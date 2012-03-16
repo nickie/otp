@@ -125,5 +125,6 @@ int main ()
     }
     PRALL;
   }
+  // DESTROY_BISTORE(b);
   return 0;
 }
