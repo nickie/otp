@@ -157,9 +157,9 @@ sz(TT, P) ->
     F = erts_debug:flat_size(TT),
     X = erts_debug:size(TT),
     T = erts_debug:copy_shared(TT),
-    Y = erts_debug:size_shared(T),
     W = erts_debug:flat_size(T),
     Z = erts_debug:size(T),
+    Y = erts_debug:size_shared(T),
     io:format("flat_size = ~B~n", [F]),
     Res1 =
         case X == Y of
