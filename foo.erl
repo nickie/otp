@@ -7,9 +7,13 @@
          mklist/1, mktuple/1, mkfunny/1, mkbin/1,
          mkimlist/1, mkimfunny/1, mkimfunny2/1, mkimfunny3/1,
          mkimfunny4/1, mkimfunny5/1, mkcls/1,
+         bmklist/1, bmktuple/1, %bmkfunny/1, bmkbin/1,
+         %bmkimlist/1, bmkimfunny/1, bmkimfunny2/1, bmkimfunny3/1,
+         %bmkimfunny4/1, bmkimfunny5/1, bmkcls/1,
          sz/1, sz/2,
          test/0, test/1, test/2, test/3, the_test/1,
-         paranoid/1
+         paranoid/1,
+         regression/3, regr_copy/1, regr_size/1
          ]).
 
 
@@ -143,6 +147,58 @@ mkcls(0) -> 42;
 mkcls(M) -> X = mkcls(M-1), F = fun (N) -> [N, X, M, X] end, {X, F, F(M)}.
 
 
+
+% The same auxiliary functions, without sharing
+
+bmklist(0) -> 0;
+bmklist(M) -> X1 = bmklist(M-1), X2 = bmklist(M-1), [X1, X2].
+
+bmktuple(0) -> 0;
+bmktuple(M) -> X1 = bmktuple(M-1), X2 = bmktuple(M-1), {X1, X2}.
+
+%% mkfunny(0) -> [];
+%% mkfunny(M) -> [mktuple(3) | mkfunny(M-1)].
+
+%% mkbin(0) -> << >>;
+%% mkbin(M) -> B = mkbin(M-1), <<B/binary, M, B/binary>>.
+
+%% mkimlist(0) -> 0;
+%% mkimlist(M) -> [M | mkimlist(M-1)].
+
+%% mkimfunny(0) -> 42;
+%% mkimfunny(M) -> X = mkimfunny(M div 2), [X, X | mkimfunny(M-1)].
+
+%% mkimfunny2(0) -> 42;
+%% mkimfunny2(M) -> X = mktuple(M div 2), Y = mkimfunny2(M-1), [X, X | Y].
+
+%% mkimfunny3(0) -> 42;
+%% mkimfunny3(M) -> X = mktuple(M div 2), Y = mkimfunny3(M-1), [Y, X, Y | X].
+
+%% mkimfunny4(0) -> {42};
+%% mkimfunny4(M) -> X = mkimfunny4(M-1), [M | X].
+
+%% mkimfunny5(0) -> {42};
+%% mkimfunny5(M) -> X = mkimfunny5(M-1), Y = mkimfunny5(M div 2),
+%%                  case prime(M) of
+%%                      false -> [Y | X];
+%%                      true  -> {M, X}
+%%                  end.
+
+%% prime(N) when N < 2 -> false;
+%% prime(N) when N =< 3 -> true;
+%% prime(N) when (N rem 6 =:= 1) orelse (N rem 6 =:= 5) -> prime_chk(N, 5);
+%% prime(_) -> false.
+
+%% prime_chk(N, I) when I*I > N -> true;
+%% prime_chk(N, I) when N rem I =:= 0 -> false;
+%% prime_chk(N, I) when I rem 6 =:= 1 -> prime_chk(N, I+4);
+%% prime_chk(N, I) -> prime_chk(N, I+2).
+
+%% mkcls(0) -> 42;
+%% mkcls(M) -> X = mkcls(M-1), F = fun (N) -> [N, X, M, X] end, {X, F, F(M)}.
+
+
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% From here on, you need the custom OTP (nickie's playground)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -226,6 +282,50 @@ paranoid(T) ->
     end,
     lists:foreach(fun (Pid) -> exit(Pid, kill) end, Pids).
 
+% Regression test: copy a term that does not share anything with
+% both methods
+
+
+regression_timer_1(Fun, Args) -> timer:tc(Fun, Args).
+
+regression_timer_2(Fun, Args) ->
+    Start = now(),
+    Result = Fun(Args),
+    Stop = now(),
+    Time = timer:now_diff(Stop, Start),
+    {Time, Result}.
+
+regression_timer_3(Fun, Args) ->
+    Myself = self(),
+    spawn_opt(fun () -> Myself ! regression_timer_1(Fun, Args) end,
+              [{min_heap_size, 100000000}]),
+    receive
+        Result -> Result
+    end.    
+    
+regression(Fun1, Fun2, Args) ->
+    {Time1, Res1} = regression_timer_1(Fun1, Args),
+    {Time2, Res2} = regression_timer_1(Fun2, Args),
+    case Res1 =:= Res2 of
+        true -> ok;
+        false -> io:format("sanity error: the two results are different~n", [])
+    end,
+    {name, Name1} = erlang:fun_info(Fun1, name),
+    {name, Name2} = erlang:fun_info(Fun2, name),
+    io:format("~s: ~B, ~s: ~B, ~.2f% ~s~n",
+              [Name1, Time1, Name2, Time2, 100*abs(Time1-Time2)/Time1,
+               case Time1 < Time2 of
+                   true -> "slower";
+                   false -> "faster"
+               end]).
+
+regr_copy(T) -> regression(fun erts_debug:copy_object/1,
+                           fun erts_debug:copy_shared/1,
+                           [T]).
+
+regr_size(T) -> regression(fun erts_debug:flat_size/1,
+                           fun erts_debug:size_shared/1,
+                           [T]).
 
 % The tests
 

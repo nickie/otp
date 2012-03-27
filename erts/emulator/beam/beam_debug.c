@@ -98,6 +98,16 @@ erts_debug_copy_shared_1(BIF_ALIST_1)
 }
 
 BIF_RETTYPE
+erts_debug_copy_object_1(BIF_ALIST_1)
+{
+    Process* p = BIF_P;
+    Eterm term = BIF_ARG_1;
+    Eterm copy = copy_object(term, erts_get_current_process());
+
+    BIF_RET(copy);
+}
+
+BIF_RETTYPE
 erts_debug_breakpoint_2(BIF_ALIST_2)
 {
     Process* p = BIF_P;
