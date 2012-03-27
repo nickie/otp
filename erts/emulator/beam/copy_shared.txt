@@ -1,3 +1,8 @@
+0. Assumption: the term to be copied (and all of its subterms)
+   is only viewed by the current process.
+
+------------------------------------------------------------------
+
 1. traverse the term and calculate the size;
    when traversing, transform as you do in size_shared
    but when you find shared objects:

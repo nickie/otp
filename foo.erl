@@ -131,12 +131,12 @@ mkimfunny5(M) -> X = mkimfunny5(M-1), Y = mkimfunny5(M div 2),
 
 prime(N) when N < 2 -> false;
 prime(N) when N =< 3 -> true;
-prime(N) when (N rem 6 == 1) orelse (N rem 6 == 5) -> prime_chk(N, 5);
+prime(N) when (N rem 6 =:= 1) orelse (N rem 6 =:= 5) -> prime_chk(N, 5);
 prime(_) -> false.
 
 prime_chk(N, I) when I*I > N -> true;
-prime_chk(N, I) when N rem I == 0 -> false;
-prime_chk(N, I) when I rem 6 == 1 -> prime_chk(N, I+4);
+prime_chk(N, I) when N rem I =:= 0 -> false;
+prime_chk(N, I) when I rem 6 =:= 1 -> prime_chk(N, I+4);
 prime_chk(N, I) -> prime_chk(N, I+2).
 
 mkcls(0) -> 42;
@@ -162,7 +162,7 @@ sz(TT, P) ->
     Y = erts_debug:size_shared(T),
     io:format("flat_size = ~B~n", [F]),
     Res1 =
-        case X == Y of
+        case X =:= Y of
             true ->
                 io:format("size = size_shared = ~B~n", [X]),
                 ok;
@@ -171,7 +171,7 @@ sz(TT, P) ->
                 error
         end,
     Res2 =
-        case F == W andalso X == Z of
+        case F =:= W andalso X =:= Z of
             true ->
                 ok;
             false ->
@@ -184,7 +184,7 @@ sz(TT, P) ->
 % Machinery for testing
 
 test() -> test(0, fun sz/1).
-     
+
 test(N) when is_integer(N) -> test(N, fun sz/1);
 test(Fun) -> test(0, all_tests(), Fun).
 
@@ -205,34 +205,34 @@ test(N, [_|L], Fun) -> test(N-1, L, Fun).
 
 paranoid_tester(T, Sz) ->
     NewSz = erts_debug:flat_size(T),
-    case NewSz == Sz of
+    case NewSz =:= Sz of
         true  -> paranoid_tester(T, Sz);
         false -> io:format("It failed! ~80P~nsize was ~B~nnow is ~B~n",
                            [T, 5, Sz, NewSz])
     end.
-            
+
 paranoid(T) ->
     Sz = erts_debug:flat_size(T),
     Fun = fun () -> paranoid_tester(T, Sz) end,
-    Pids = lists:map(fun (_) -> spawn(Fun) end, lists:seq(1, 10)),
+    Pids = [spawn(Fun) || _ <- lists:seq(1, 10)],
     timer:sleep(1000),
     X = erts_debug:size_shared(T),
     timer:sleep(1000),
     Y = erts_debug:size_shared(T),
     timer:sleep(1000),
-    case X == Y of
+    case X =:= Y of
         true -> ok;
         false -> io:format("sanity error: ~B and ~B~n", [X, Y])
     end,
     lists:foreach(fun (Pid) -> exit(Pid, kill) end, Pids).
-            
+
 
 % The tests
 
 all_tests() ->
     L0 = [1, 2, 3, 4, 5, 6, 7, 8],
     L1 = [L0, L0, L0, L0],
-    T1={L1, L0, [L1, L1, L0], {L0, [L1, L1]}},
+    T1 = {L1, L0, [L1, L1, L0], {L0, [L1, L1]}},
     B1 = <<1,2,3,4>>,
     B2 = <<5,6,B1/binary,7,8>>,
     B3 = <<B1/binary, B2/binary, B2/binary>>,
