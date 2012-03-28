@@ -301,11 +301,11 @@ regression_timer_3(Fun, Args) ->
               [{min_heap_size, 100000000}]),
     receive
         Result -> Result
-    end.    
-    
+    end.
+
 regression(Fun1, Fun2, Args) ->
-    {Time1, Res1} = regression_timer_1(Fun1, Args),
-    {Time2, Res2} = regression_timer_1(Fun2, Args),
+    {Time1, Res1} = regression_timer_3(Fun1, Args),
+    {Time2, Res2} = regression_timer_3(Fun2, Args),
     case Res1 =:= Res2 of
         true -> ok;
         false -> io:format("sanity error: the two results are different~n", [])

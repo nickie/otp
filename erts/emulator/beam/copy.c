@@ -17,11 +17,6 @@
  * %CopyrightEnd%
  */
 
-#ifdef DEBUG
-// !!! nickie: turn on assertions!
-#define NDEBUG 1
-#endif
-
 #ifdef HAVE_CONFIG_H
 #  include "config.h"
 #endif
@@ -1340,8 +1335,20 @@ alloc:
 	    }
             case EXTERNAL_PID_SUBTAG:
             case EXTERNAL_PORT_SUBTAG:
-            case EXTERNAL_REF_SUBTAG:
-		ASSERT(0 && "TODO!!!");
+            case EXTERNAL_REF_SUBTAG: {
+		ExternalThing *etp = (ExternalThing *) ptr;
+		sz = thing_arityval(hdr);
+		*resp = make_external(hp);
+		*hp++ = hdr;
+		ptr++;
+		while (sz-- > 0) {
+                    *hp++ = *ptr++;
+		}
+		etp->next = off_heap->first;
+		off_heap->first = (struct erl_off_heap_header*) etp;
+		erts_refc_inc(&etp->node->refc, 2);
+		goto cleanup_next;
+	    }
 	    default:
 		sz = thing_arityval(hdr);
 		*resp = make_boxed(hp);
