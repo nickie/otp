@@ -7,11 +7,11 @@
          mklist/1, mktuple/1, mkfunny/1, mkbin/1,
          mkimlist/1, mkimfunny/1, mkimfunny2/1, mkimfunny3/1,
          mkimfunny4/1, mkimfunny5/1, mkcls/1,
-         bmklist/1, bmktuple/1, %bmkfunny/1, bmkbin/1,
-         %bmkimlist/1, bmkimfunny/1, bmkimfunny2/1, bmkimfunny3/1,
-         %bmkimfunny4/1, bmkimfunny5/1, bmkcls/1,
+         bmklist/1, bmktuple/1, bmkfunny/1, bmkbin/1,
+         bmkimlist/1, bmkimfunny/1, bmkimfunny2/1, bmkimfunny3/1,
+         bmkimfunny4/1, bmkimfunny5/1, bmkcls/1,
          sz/1, sz/2,
-         test/0, test/1, test/2, test/3, the_test/1,
+         test/0, test/1, test/2, test/3, the_test/1, all_tests/0,
          paranoid/1,
          regression/3, regr_copy/1, regr_size/1
          ]).
@@ -156,46 +156,41 @@ bmklist(M) -> X1 = bmklist(M-1), X2 = bmklist(M-1), [X1, X2].
 bmktuple(0) -> 0;
 bmktuple(M) -> X1 = bmktuple(M-1), X2 = bmktuple(M-1), {X1, X2}.
 
-%% mkfunny(0) -> [];
-%% mkfunny(M) -> [mktuple(3) | mkfunny(M-1)].
+bmkfunny(0) -> [];
+bmkfunny(M) -> [bmktuple(M div 2) | bmkfunny(M-1)].
 
-%% mkbin(0) -> << >>;
-%% mkbin(M) -> B = mkbin(M-1), <<B/binary, M, B/binary>>.
+bmkbin(0) -> << >>;
+bmkbin(M) -> B1 = bmkbin(M-1), B2 = bmkbin(M-1), <<B1/binary, M, B2/binary>>.
 
-%% mkimlist(0) -> 0;
-%% mkimlist(M) -> [M | mkimlist(M-1)].
+bmkimlist(0) -> 0;
+bmkimlist(M) -> [M | bmkimlist(M-1)].
 
-%% mkimfunny(0) -> 42;
-%% mkimfunny(M) -> X = mkimfunny(M div 2), [X, X | mkimfunny(M-1)].
+bmkimfunny(0) -> 42;
+bmkimfunny(M) -> X1 = bmkimfunny(M div 2), X2 = bmkimfunny(M div 2),
+                 [X1, X2 | bmkimfunny(M-1)].
 
-%% mkimfunny2(0) -> 42;
-%% mkimfunny2(M) -> X = mktuple(M div 2), Y = mkimfunny2(M-1), [X, X | Y].
+bmkimfunny2(0) -> 42;
+bmkimfunny2(M) -> X1 = bmktuple(M div 2), X2 = bmktuple(M div 2),
+                  Y = bmkimfunny2(M-1), [X1, X2 | Y].
 
-%% mkimfunny3(0) -> 42;
-%% mkimfunny3(M) -> X = mktuple(M div 2), Y = mkimfunny3(M-1), [Y, X, Y | X].
+bmkimfunny3(0) -> 42;
+bmkimfunny3(M) -> X1 = bmktuple(M div 2), Y1 = bmkimfunny3(M-1),
+                  X2 = bmktuple(M div 2), Y2 = bmkimfunny3(M-1),
+                  [Y1, X1, Y2 | X2].
 
-%% mkimfunny4(0) -> {42};
-%% mkimfunny4(M) -> X = mkimfunny4(M-1), [M | X].
+bmkimfunny4(0) -> {42};
+bmkimfunny4(M) -> X = bmkimfunny4(M-1), [M | X].
 
-%% mkimfunny5(0) -> {42};
-%% mkimfunny5(M) -> X = mkimfunny5(M-1), Y = mkimfunny5(M div 2),
-%%                  case prime(M) of
-%%                      false -> [Y | X];
-%%                      true  -> {M, X}
-%%                  end.
+bmkimfunny5(0) -> {42};
+bmkimfunny5(M) -> X = bmkimfunny5(M-1), Y = bmkimfunny5(M div 2),
+                  case prime(M) of
+                      false -> [Y | X];
+                      true  -> {M, X}
+                  end.
 
-%% prime(N) when N < 2 -> false;
-%% prime(N) when N =< 3 -> true;
-%% prime(N) when (N rem 6 =:= 1) orelse (N rem 6 =:= 5) -> prime_chk(N, 5);
-%% prime(_) -> false.
-
-%% prime_chk(N, I) when I*I > N -> true;
-%% prime_chk(N, I) when N rem I =:= 0 -> false;
-%% prime_chk(N, I) when I rem 6 =:= 1 -> prime_chk(N, I+4);
-%% prime_chk(N, I) -> prime_chk(N, I+2).
-
-%% mkcls(0) -> 42;
-%% mkcls(M) -> X = mkcls(M-1), F = fun (N) -> [N, X, M, X] end, {X, F, F(M)}.
+bmkcls(0) -> 42;
+bmkcls(M) -> X1 = bmkcls(M-1), X2 = bmkcls(M-1), X3 = bmkcls(M-1),
+             F = fun (N) -> [N, X1, M, X2] end, {X3, F, F(M)}.
 
 
 
@@ -312,8 +307,9 @@ regression(Fun1, Fun2, Args) ->
     end,
     {name, Name1} = erlang:fun_info(Fun1, name),
     {name, Name2} = erlang:fun_info(Fun2, name),
-    io:format("~s: ~B, ~s: ~B, ~.2f% ~s~n",
-              [Name1, Time1, Name2, Time2, 100*abs(Time1-Time2)/Time1,
+    io:format("~s: ~10.6f, ~s: ~10.6f, ~6.2f% ~s~n",
+              [Name1, Time1 / 1000000, Name2, Time2 / 1000000,
+               100*abs(Time1-Time2)/Time1,
                case Time1 < Time2 of
                    true -> "slower";
                    false -> "faster"
@@ -329,7 +325,9 @@ regr_size(T) -> regression(fun erts_debug:flat_size/1,
 
 % The tests
 
-all_tests() ->
+all_tests() -> all_tests_no_sharing().
+
+all_tests_sharing() ->
     L0 = [1, 2, 3, 4, 5, 6, 7, 8],
     L1 = [L0, L0, L0, L0],
     T1 = {L1, L0, [L1, L1, L0], {L0, [L1, L1]}},
@@ -343,4 +341,10 @@ all_tests() ->
      mkimfunny(20), mkimfunny2(20), mkimfunny3(20), mkimfunny4(1000),
      mkimfunny5(50), mkcls(10),
      B1, B2, B3, T2, B4
+    ].
+
+all_tests_no_sharing() ->
+    [bmklist(20), bmktuple(20), bmkfunny(40),
+     bmkimfunny(40), bmkimfunny2(30), bmkimfunny3(15), bmkimfunny4(1000000),
+     bmkimfunny5(250), bmkcls(10), bmkbin(24)
     ].
