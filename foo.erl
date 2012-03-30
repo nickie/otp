@@ -147,7 +147,6 @@ mkcls(0) -> 42;
 mkcls(M) -> X = mkcls(M-1), F = fun (N) -> [N, X, M, X] end, {X, F, F(M)}.
 
 
-
 % The same auxiliary functions, without sharing
 
 bmklist(0) -> 0;
@@ -277,9 +276,9 @@ paranoid(T) ->
     end,
     lists:foreach(fun (Pid) -> exit(Pid, kill) end, Pids).
 
+
 % Regression test: copy a term that does not share anything with
 % both methods
-
 
 regression_timer_1(Fun, Args) -> timer:tc(Fun, Args).
 
