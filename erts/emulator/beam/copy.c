@@ -1404,6 +1404,13 @@ all_clean:
     DESTROY_EQUEUE(s);
     DESTROY_BITSTORE(b);
     DESTROY_SHTABLE(t);
+
+#ifdef DEBUG
+    if (eq(saved_obj, result) == 0) {
+	erl_exit(ERTS_ABORT_EXIT, "copy not equal to source\n");
+    }
+#endif
+
     return result;
 }
 
