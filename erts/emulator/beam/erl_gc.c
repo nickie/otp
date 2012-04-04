@@ -948,7 +948,7 @@ do_minor(Process *p, Uint new_sz, Eterm* objv, int nobj)
     Eterm* old_htop = OLD_HTOP(p);
     Eterm* n_heap;
 
-#ifdef NICKIE_SHCOPY
+#ifdef NICKIE_SHCOPY_DEBUG
     erts_fprintf(stderr, "MINOR GC !!!\n");
 #endif
 
@@ -1168,7 +1168,7 @@ major_collection(Process* p, int need, Eterm* objv, int nobj, Uint *recl)
 
     size_before = fragments + (HEAP_TOP(p) - HEAP_START(p));
 
-#ifdef NICKIE_SHCOPY_SEND
+#ifdef NICKIE_SHCOPY_DEBUG
     erts_fprintf(stderr, "MAJOR GC !!!\n");
 #endif
 

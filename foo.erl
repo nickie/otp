@@ -9,7 +9,7 @@
          mkimfunny4/1, mkimfunny5/1, mkcls/1, mkbin2/1,
          bmklist/1, bmktuple/1, bmkfunny/1, bmkbin/1,
          bmkimlist/1, bmkimfunny/1, bmkimfunny2/1, bmkimfunny3/1,
-         bmkimfunny4/1, bmkimfunny5/1, bmkcls/1,
+         bmkimfunny4/1, bmkimfunny5/1, bmkcls/1, bmkbin2/1,
          sz/1, sz/2,
          test/0, test/1, test/2, test/3, the_test/1, all_tests/0,
          paranoid/1,
@@ -196,6 +196,12 @@ bmkcls(0) -> 42;
 bmkcls(M) -> X1 = bmkcls(M-1), X2 = bmkcls(M-1), X3 = bmkcls(M-1),
              F = fun (N) -> [N, X1, M, X2] end, {X3, F, F(M)}.
 
+bmkbin2(0) -> <<42>>;
+bmkbin2(M) -> B1 = bmkbin2(M-1),
+              B2 = bmkbin2(M-1),
+              <<X:4, Y:4, Rest/binary>> = B1,
+              <<X, B2/binary, M, Rest/binary, Y>>.
+
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -296,8 +302,8 @@ regression_timer_2(Fun, Args) ->
 
 regression_timer_3(Fun, Args) ->
     Myself = self(),
-    %Opts = [{min_heap_size, 100000000}],
-    Opts = [],
+    Opts = [{min_heap_size, 100000000}],
+    %Opts = [],
     spawn_opt(fun () -> Myself ! regression_timer_1(Fun, Args) end, Opts),
     receive
         Result -> Result
@@ -330,8 +336,8 @@ regr_size(T) -> regression(fun erts_debug:flat_size/1,
 
 % The tests
 
-%all_tests() -> all_tests_no_sharing().
-all_tests() -> all_tests_sharing().
+all_tests() -> all_tests_no_sharing().
+%all_tests() -> all_tests_sharing().
 
 all_tests_sharing() ->
     L0 = [1, 2, 3, 4, 5, 6, 7, 8],
@@ -342,15 +348,16 @@ all_tests_sharing() ->
     B3 = <<B1/binary, B2/binary, B2/binary>>,
     T2 = {B1, [B1, B1], B1},
     B4 = mkbin(10),
+    B5 = mkbin2(10),
     [L0, L1, T1,
      mklist(10), mktuple(10), mkfunny(10),
      mkimfunny(20), mkimfunny2(20), mkimfunny3(20), mkimfunny4(1000),
      mkimfunny5(50), mkcls(10),
-     B1, B2, B3, T2, B4
+     B1, B2, B3, T2, B4, B5
     ].
 
 all_tests_no_sharing() ->
     [bmklist(20), bmktuple(20), bmkfunny(40),
      bmkimfunny(40), bmkimfunny2(30), bmkimfunny3(15), bmkimfunny4(1000000),
-     bmkimfunny5(250), bmkcls(10), bmkbin(24)
+     bmkimfunny5(250), bmkcls(10), bmkbin(24), bmkbin2(20)
     ].

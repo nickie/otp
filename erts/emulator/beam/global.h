@@ -990,10 +990,10 @@ void erl_error(char*, va_list);
 
 /* This controls whether sharing-preserving copy is used by Erlang */
 
-#undef NICKIE_SHCOPY_SEND
+#define NICKIE_SHCOPY_SEND
 
 #if defined(NICKIE_SHCOPY_SEND)
-#define NICKIE_SHCOPY
+#undef NICKIE_SHCOPY_DEBUG
 #endif
 
 /* The persistent state while the sharing-preserving copier works */

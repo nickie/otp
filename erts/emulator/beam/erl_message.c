@@ -1112,10 +1112,14 @@ erts_send_message(Process* sender,
 #endif
 	BM_SWAP_TIMER(send,size);
 #ifdef NICKIE_SHCOPY_SEND
+#ifdef NICKIE_SHCOPY_DEBUG
 	erts_fprintf(stderr, "message is %T\n", message);
 	erts_fprintf(stderr, "calc size...\n");
+#endif
 	msize = copy_shared_calculate(message, &info);
+#ifdef NICKIE_SHCOPY_DEBUG
         erts_fprintf(stderr, "size was: %u\n", msize);
+#endif
 #else
 	msize = size_object(message);
 #endif
@@ -1128,11 +1132,15 @@ erts_send_message(Process* sender,
 					   &state);
 	BM_SWAP_TIMER(send,copy);
 #ifdef NICKIE_SHCOPY_SEND
+#ifdef NICKIE_SHCOPY_DEBUG
         erts_fprintf(stderr, "before copy...\n");
+#endif
 	copy = copy_shared_perform(message, &info, hp, ohp);
+#ifdef NICKIE_SHCOPY_DEBUG
         erts_fprintf(stderr, "after copy...\n");
 	erts_fprintf(stderr, "original is %T\n", message);
 	erts_fprintf(stderr, "copy is %T\n", copy);
+#endif
         message = copy;
         DESTROY_INFO(info);
 #else
