@@ -165,7 +165,7 @@ struct port {
 #else
     ErlTimer tm;                 /* Timer entry */
 #endif
-    
+
     Eterm tracer_proc;		/* If the port is traced, this is the tracer */
     Uint trace_flags;		/* Trace flags */
 
@@ -249,7 +249,7 @@ erts_prtsd_set(Port *prt, int ix, void *data)
 /* Driver handle (wrapper for old plain handle) */
 #define ERL_DE_OK      0
 #define ERL_DE_UNLOAD  1
-#define ERL_DE_FORCE_UNLOAD 2 
+#define ERL_DE_FORCE_UNLOAD 2
 #define ERL_DE_RELOAD  3
 #define ERL_DE_FORCE_RELOAD  4
 #define ERL_DE_PERMANENT 5
@@ -282,7 +282,7 @@ erts_prtsd_set(Port *prt, int ix, void *data)
 typedef struct de_proc_entry {
     Process *proc;                   /* The process... */
     Uint    awaiting_status;         /* PROC_LOADED == Have loaded the driver
-			                PROC_AWAIT_UNLOAD == Wants to be notified 
+			                PROC_AWAIT_UNLOAD == Wants to be notified
 			                when we have unloaded the driver (was locked)
 			                PROC_AWAIT_LOAD == Wants to be notified when we
 			                reloaded the driver (old was locked) */
@@ -340,10 +340,10 @@ struct erts_driver_t_ {
 			 unsigned int *flags);
     void (*event)(ErlDrvData drv_data, ErlDrvEvent event,
 		  ErlDrvEventData event_data);
-    void (*ready_input)(ErlDrvData drv_data, ErlDrvEvent event); 
-    void (*ready_output)(ErlDrvData drv_data, ErlDrvEvent event);  
+    void (*ready_input)(ErlDrvData drv_data, ErlDrvEvent event);
+    void (*ready_output)(ErlDrvData drv_data, ErlDrvEvent event);
     void (*timeout)(ErlDrvData drv_data);
-    void (*ready_async)(ErlDrvData drv_data, ErlDrvThreadData thread_data); /* Might be NULL */ 
+    void (*ready_async)(ErlDrvData drv_data, ErlDrvThreadData thread_data); /* Might be NULL */
     void (*process_exit)(ErlDrvData drv_data, ErlDrvMonitor *monitor);
     void (*stop_select)(ErlDrvEvent event, void*); /* Might be NULL */
 };
@@ -383,7 +383,7 @@ extern Eterm erts_ddll_monitor_driver(Process *p,
 ** Note that the two structures Binary and ErlDrvBinary HAVE to
 ** be equal except for extra fields in the beginning of the struct.
 ** ErlDrvBinary is defined in erl_driver.h.
-** When driver_alloc_binary is called, a Binary is allocated, but 
+** When driver_alloc_binary is called, a Binary is allocated, but
 ** the pointer returned is to the address of the first element that
 ** also occurs in the ErlDrvBinary struct (driver.*binary takes care if this).
 ** The driver need never know about additions to the internal Binary of the
@@ -509,7 +509,7 @@ erts_mk_magic_binary_term(Eterm **hpp, ErlOffHeap *ohp, Binary *mbp)
 
     erts_refc_inc(&mbp->refc, 1);
 
-    return make_binary(pb);    
+    return make_binary(pb);
 }
 
 #endif
@@ -869,7 +869,7 @@ do {                                                                  	\
 #define ERTS_PORT_SFLG_CLOSING		((Uint32) (1 <<  6))
 /* Send a closed message when terminating */
 #define ERTS_PORT_SFLG_SEND_CLOSED	((Uint32) (1 <<  7))
-/* Line orinted io on port */  
+/* Line orinted io on port */
 #define ERTS_PORT_SFLG_LINEBUF_IO	((Uint32) (1 <<  8))
 /* Immortal port (only certain system ports) */
 #define ERTS_PORT_SFLG_IMMORTAL		((Uint32) (1 <<  9))
@@ -886,7 +886,7 @@ do {                                                                  	\
 #define ERTS_PORT_SFLG_PORT_DEBUG	((Uint32) (1 << 31))
 #endif
 
-/* Combinations of port status flags */ 
+/* Combinations of port status flags */
 #define ERTS_PORT_SFLGS_DEAD						\
   (ERTS_PORT_SFLG_FREE							\
    | ERTS_PORT_SFLG_FREE_SCHEDULED					\
@@ -988,9 +988,49 @@ __decl_noreturn void __noreturn erl_exit(int n, char*, ...);
 __decl_noreturn void __noreturn erl_exit_flush_async(int n, char*, ...);
 void erl_error(char*, va_list);
 
+/* This controls whether sharing-preserving copy is used by Erlang */
+
+#undef NICKIE_SHCOPY_SEND
+
+#if defined(NICKIE_SHCOPY_SEND)
+#define NICKIE_SHCOPY
+#endif
+
+/* The persistent state while the sharing-preserving copier works */
+
+typedef struct shcopy_info {
+    Eterm  queue_default[DEF_EQUEUE_SIZE];
+    Eterm* queue_start;
+    Eterm* queue_end;
+    UWord  bitstore_default[DEF_WSTACK_SIZE];
+    UWord* bitstore_start;
+    Eterm  shtable_default[DEF_ESTACK_SIZE];
+    Eterm* shtable_start;
+} shcopy_info;
+
+#define DECLARE_INFO(info)                                              \
+    shcopy_info info = { {}, info.queue_default, info.queue_default,	\
+                         {}, info.bitstore_default,                  	\
+                         {}, info.shtable_default }
+
+#define DESTROY_INFO(info)						\
+do {									\
+    if (info.queue_start != info.queue_default) {			\
+	erts_free(ERTS_ALC_T_ESTACK, info.queue_start);			\
+    }									\
+    if (info.bitstore_start != info.bitstore_default) {			\
+	erts_free(ERTS_ALC_T_ESTACK, info.bitstore_start);		\
+    }									\
+    if (info.shtable_start != info.shtable_default) {			\
+	erts_free(ERTS_ALC_T_ESTACK, info.shtable_start);		\
+    }									\
+} while(0)
+
 /* copy.c */
 void init_copy(void);
 Eterm copy_object(Eterm, Process*);
+Uint copy_shared_calculate(Eterm, shcopy_info*);
+Uint copy_shared_perform(Eterm, shcopy_info*, Eterm*, ErlOffHeap*);
 Eterm copy_shared(Eterm, Process*);
 
 #if HALFWORD_HEAP
@@ -1043,7 +1083,7 @@ void move_multi_frags(Eterm** hpp, ErlOffHeap*, ErlHeapFragment* first,
   }                                                                     \
 } while(0)
 
-/* Note that RRMA_REMOVE decreases the given index after deletion. 
+/* Note that RRMA_REMOVE decreases the given index after deletion.
  * This is done so that a loop with an increasing index can call
  * remove without having to decrease the index to see the element
  * placed in the hole after the deleted element.
@@ -1787,7 +1827,7 @@ Sint erts_unicode_set_loop_limit(Sint limit);
 void erts_native_filename_put(Eterm ioterm, int encoding, byte *p) ;
 Sint erts_native_filename_need(Eterm ioterm, int encoding);
 void erts_copy_utf8_to_utf16_little(byte *target, byte *bytes, int num_chars);
-int erts_analyze_utf8(byte *source, Uint size, 
+int erts_analyze_utf8(byte *source, Uint size,
 			byte **err_pos, Uint *num_chars, int *left);
 char *erts_convert_filename_to_native(Eterm name, ErtsAlcType_t alloc_type, int allow_empty);
 
@@ -1854,7 +1894,7 @@ void monitor_long_gc(Process *p, Uint time);
 void monitor_large_heap(Process *p);
 void monitor_generic(Process *p, Eterm type, Eterm spec);
 Uint erts_trace_flag2bit(Eterm flag);
-int erts_trace_flags(Eterm List, 
+int erts_trace_flags(Eterm List,
 		 Uint *pMask, Eterm *pTracer, int *pCpuTimestamp);
 Eterm erts_bif_trace(int bif_index, Process* p, Eterm* args, BeamInstr *I);
 
@@ -1878,7 +1918,7 @@ struct Sint_buf {
 #else
     char s[12];
 #endif
-};	
+};
 char* Sint_to_buf(Sint, struct Sint_buf*);
 
 #define ERTS_IOLIST_OK 0
@@ -1937,13 +1977,13 @@ int erts_hibernate(Process* c_p, Eterm module, Eterm function, Eterm args, Eterm
 seq_trace_output_generic((token), (msg), (type), (receiver), (process), NIL)
 #define seq_trace_output_exit(token, msg, type, receiver, exitfrom) \
 seq_trace_output_generic((token), (msg), (type), (receiver), NULL, (exitfrom))
-void seq_trace_output_generic(Eterm token, Eterm msg, Uint type, 
+void seq_trace_output_generic(Eterm token, Eterm msg, Uint type,
 			      Eterm receiver, Process *process, Eterm exitfrom);
 
 int seq_trace_update_send(Process *process);
 
-Eterm erts_seq_trace(Process *process, 
-		     Eterm atom_type, Eterm atom_true_or_false, 
+Eterm erts_seq_trace(Process *process,
+		     Eterm atom_type, Eterm atom_true_or_false,
 		     int build_result);
 
 struct trace_pattern_flags {
@@ -1955,7 +1995,7 @@ struct trace_pattern_flags {
 };
 extern const struct trace_pattern_flags erts_trace_pattern_flags_off;
 extern int erts_call_time_breakpoint_tracing;
-int erts_set_trace_pattern(Eterm* mfa, int specified, 
+int erts_set_trace_pattern(Eterm* mfa, int specified,
 			   Binary* match_prog_set, Binary *meta_match_prog_set,
 			   int on, struct trace_pattern_flags,
 			   Eterm meta_tracer_pid);
@@ -1989,7 +2029,7 @@ do {								\
 #define MatchSetGetSource(MPSP) erts_match_set_get_source(MPSP)
 
 extern Binary *erts_match_set_compile(Process *p, Eterm matchexpr);
-Eterm erts_match_set_lint(Process *p, Eterm matchexpr); 
+Eterm erts_match_set_lint(Process *p, Eterm matchexpr);
 extern void erts_match_set_release_result(Process* p);
 
 enum erts_pam_run_flags {
@@ -1997,7 +2037,7 @@ enum erts_pam_run_flags {
     ERTS_PAM_COPY_RESULT=1,
     ERTS_PAM_CONTIGUOUS_TUPLE=2
 };
-extern Eterm erts_match_set_run(Process *p, Binary *mpsp, 
+extern Eterm erts_match_set_run(Process *p, Binary *mpsp,
 				Eterm *args, int num_args,
 				enum erts_pam_run_flags in_flags,
 				Uint32 *return_flags);

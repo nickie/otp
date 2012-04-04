@@ -1106,8 +1106,19 @@ erts_send_message(Process* sender,
         Eterm *hp;
 	erts_aint32_t state;
 
+#ifdef NICKIE_SHCOPY_SEND
+        Eterm *copy;
+        DECLARE_INFO(info);
+#endif
 	BM_SWAP_TIMER(send,size);
+#ifdef NICKIE_SHCOPY_SEND
+	erts_fprintf(stderr, "message is %T\n", message);
+	erts_fprintf(stderr, "calc size...\n");
+	msize = copy_shared_calculate(message, &info);
+        erts_fprintf(stderr, "size was: %u\n", msize);
+#else
 	msize = size_object(message);
+#endif
 	BM_SWAP_TIMER(size,send);
 	hp = erts_alloc_message_heap_state(msize,
 					   &bp,
@@ -1116,7 +1127,17 @@ erts_send_message(Process* sender,
 					   receiver_locks,
 					   &state);
 	BM_SWAP_TIMER(send,copy);
+#ifdef NICKIE_SHCOPY_SEND
+        erts_fprintf(stderr, "before copy...\n");
+	copy = copy_shared_perform(message, &info, hp, ohp);
+        erts_fprintf(stderr, "after copy...\n");
+	erts_fprintf(stderr, "original is %T\n", message);
+	erts_fprintf(stderr, "copy is %T\n", copy);
+        message = copy;
+        DESTROY_INFO(info);
+#else
 	message = copy_struct(message, msize, &hp, ohp);
+#endif
 	BM_MESSAGE_COPIED(msz);
 	BM_SWAP_TIMER(copy,send);
         DTRACE6(message_send, sender_name, receiver_name,
@@ -1136,8 +1157,15 @@ erts_send_message(Process* sender,
 #else
 	ErlMessage* mp = message_alloc();
         Eterm *hp;
+#ifdef NICKIE_SHCOPY_SEND
+        DECLARE_INFO(info);
+#endif
         BM_SWAP_TIMER(send,size);
+#ifdef NICKIE_SHCOPY_SEND
+	msize = copy_shared_calculate(message, &info);
+#else
 	msize = size_object(message);
+#endif
         BM_SWAP_TIMER(size,send);
 	
 	if (receiver->stop - receiver->htop <= msize) {
@@ -1148,7 +1176,12 @@ erts_send_message(Process* sender,
 	hp = receiver->htop;
 	receiver->htop = hp + msize;
         BM_SWAP_TIMER(send,copy);
+#ifdef NICKIE_SHCOPY_SEND
+	message = copy_shared_perform(message, &info, hp, &receiver->off_heap);
+        DESTROY_INFO(info);
+#else
 	message = copy_struct(message, msize, &hp, &receiver->off_heap);
+#endif
 	BM_MESSAGE_COPIED(msize);
         BM_SWAP_TIMER(copy,send);
         DTRACE6(message_send, sender_name, receiver_name,

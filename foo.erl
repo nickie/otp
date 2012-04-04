@@ -6,7 +6,7 @@
          % show_compiler_crashes/0,
          mklist/1, mktuple/1, mkfunny/1, mkbin/1,
          mkimlist/1, mkimfunny/1, mkimfunny2/1, mkimfunny3/1,
-         mkimfunny4/1, mkimfunny5/1, mkcls/1,
+         mkimfunny4/1, mkimfunny5/1, mkcls/1, mkbin2/1,
          bmklist/1, bmktuple/1, bmkfunny/1, bmkbin/1,
          bmkimlist/1, bmkimfunny/1, bmkimfunny2/1, bmkimfunny3/1,
          bmkimfunny4/1, bmkimfunny5/1, bmkcls/1,
@@ -145,6 +145,11 @@ prime_chk(N, I) -> prime_chk(N, I+2).
 
 mkcls(0) -> 42;
 mkcls(M) -> X = mkcls(M-1), F = fun (N) -> [N, X, M, X] end, {X, F, F(M)}.
+
+mkbin2(0) -> <<42>>;
+mkbin2(M) -> B = mkbin2(M-1),
+             <<X:4, Y:4, Rest/binary>> = B,
+             <<X, B/binary, M, Rest/binary, Y>>.
 
 
 % The same auxiliary functions, without sharing
@@ -291,8 +296,9 @@ regression_timer_2(Fun, Args) ->
 
 regression_timer_3(Fun, Args) ->
     Myself = self(),
-    spawn_opt(fun () -> Myself ! regression_timer_1(Fun, Args) end,
-              [{min_heap_size, 100000000}]),
+    %Opts = [{min_heap_size, 100000000}],
+    Opts = [],
+    spawn_opt(fun () -> Myself ! regression_timer_1(Fun, Args) end, Opts),
     receive
         Result -> Result
     end.
@@ -324,7 +330,8 @@ regr_size(T) -> regression(fun erts_debug:flat_size/1,
 
 % The tests
 
-all_tests() -> all_tests_no_sharing().
+%all_tests() -> all_tests_no_sharing().
+all_tests() -> all_tests_sharing().
 
 all_tests_sharing() ->
     L0 = [1, 2, 3, 4, 5, 6, 7, 8],

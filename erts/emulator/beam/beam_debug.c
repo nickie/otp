@@ -92,8 +92,17 @@ erts_debug_copy_shared_1(BIF_ALIST_1)
 {
     Process* p = BIF_P;
     Eterm term = BIF_ARG_1;
-    Eterm copy = copy_shared(term, erts_get_current_process());
+    Uint size;
+    Eterm* hp;
+    Eterm copy;
+    DECLARE_INFO(info);
 
+    size = copy_shared_calculate(term, &info);
+    if (size > 0) {
+      hp = HAlloc(p, size);
+    }
+    copy = copy_shared_perform(term, &info, hp, &p->off_heap);
+    DESTROY_INFO(info);
     BIF_RET(copy);
 }
 
@@ -102,7 +111,7 @@ erts_debug_copy_object_1(BIF_ALIST_1)
 {
     Process* p = BIF_P;
     Eterm term = BIF_ARG_1;
-    Eterm copy = copy_object(term, erts_get_current_process());
+    Eterm copy = copy_object(term, p);
 
     BIF_RET(copy);
 }
