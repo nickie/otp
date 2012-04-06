@@ -101,7 +101,7 @@ erts_debug_copy_shared_1(BIF_ALIST_1)
     if (size > 0) {
       hp = HAlloc(p, size);
     }
-    copy = copy_shared_perform(term, &info, hp, &p->off_heap);
+    copy = copy_shared_perform(term, &info, &hp, &p->off_heap);
     DESTROY_INFO(info);
     BIF_RET(copy);
 }
@@ -278,7 +278,7 @@ erts_debug_disassemble_1(BIF_ALIST_1)
 
 	/*
 	 * Try the export entry first to allow disassembly of special functions
-	 * such as erts_debug:apply/4.  Then search for it in the module.
+	 * such as erts_debug:apply/4.	Then search for it in the module.
 	 */
 	if ((ep = erts_find_function(mod, name, arity, code_ix)) != NULL) {
 	    /* XXX: add "&& ep->address != ep->code+3" condition?
@@ -411,7 +411,7 @@ print_op(int to, void *to_arg, int op, int size, BeamInstr* addr)
 	}
 
 	/*
-	 * Undo any packing done by the loader.  This is easily done by running
+	 * Undo any packing done by the loader.	 This is easily done by running
 	 * the packing program backwards and in reverse.
 	 */
 

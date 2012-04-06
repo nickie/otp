@@ -1,29 +1,16 @@
-This was the stable version, before breaking in two functions.
-
-> bin/cerl -debug
-2> foo:test(fun foo:regr_copy/1).
-
-bmklist(20):          copy_object:   0.269881, copy_shared:   0.577023, 113.81% slower
-bmktuple(20):         copy_object:   0.273495, copy_shared:   0.257344,   5.91% faster
-bmkfunny(40):         copy_object:   0.819960, copy_shared:   0.787803,   3.92% faster
-bmkimfunny(40):       copy_object:   0.007196, copy_shared:   0.010816,  50.31% slower
-bmkimfunny2(30):      copy_object:   0.050578, copy_shared:   0.048040,   5.02% faster
-bmkimfunny3(15):      copy_object:   0.029586, copy_shared:   0.036671,  23.95% slower
-bmkimfunny4(1000000): copy_object:   0.099672, copy_shared:   0.128405,  28.83% slower
-bmkimfunny5(250):     copy_object:   1.926137, copy_shared:   2.863060,  48.64% slower
-bmkcls(10):           copy_object:   3.134778, copy_shared:   5.600014,  78.64% slower
-bmkbin(24):           copy_object:   0.005251, copy_shared:   0.005981,  13.90% slower
+On greedy:
 
 > bin/cerl
-2> foo:test(fun foo:regr_copy/1).
+1> demo:bench().
 
-bmklist(20):          copy_object:   0.060842, copy_shared:   0.281422, 362.55% slower
-bmktuple(20):         copy_object:   0.050880, copy_shared:   0.068386,  34.41% slower
-bmkfunny(40):         copy_object:   0.164728, copy_shared:   0.220324,  33.75% slower
-bmkimfunny(40):       copy_object:   0.001043, copy_shared:   0.002561, 145.54% slower
-bmkimfunny2(30):      copy_object:   0.007474, copy_shared:   0.009542,  27.67% slower
-bmkimfunny3(15):      copy_object:   0.003856, copy_shared:   0.008623, 123.63% slower
-bmkimfunny4(1000000): copy_object:   0.019330, copy_shared:   0.029258,  51.36% slower
-bmkimfunny5(250):     copy_object:   0.386293, copy_shared:   1.319367, 241.55% slower
-bmkcls(10):           copy_object:   0.796919, copy_shared:   2.793936, 250.59% slower
-bmkbin(24):           copy_object:   0.000002, copy_shared:   0.000004, 100.00% slower
+bmklist(20):          copy_object:   0.065175, copy_shared:   0.092998,  42.69% slower
+bmktuple(20):         copy_object:   0.062029, copy_shared:   0.080789,  30.24% slower
+bmkfunny(40):         copy_object:   0.170105, copy_shared:   0.241851,  42.18% slower
+bmkimfunny(40):       copy_object:   0.001020, copy_shared:   0.001387,  35.98% slower
+bmkimfunny2(30):      copy_object:   0.007664, copy_shared:   0.010930,  42.61% slower
+bmkimfunny3(15):      copy_object:   0.004031, copy_shared:   0.005681,  40.93% slower
+bmkimfunny4(1000000): copy_object:   0.019975, copy_shared:   0.028956,  44.96% slower
+bmkimfunny5(250):     copy_object:   0.360264, copy_shared:   0.426782,  18.46% slower
+bmkcls(10):           copy_object:   0.831496, copy_shared:   1.169642,  40.67% slower
+bmkbin(24):           copy_object:   0.000002, copy_shared:   0.000001,  50.00% faster
+bmkbin2(20):          copy_object:   0.000003, copy_shared:   0.000001,  66.67% faster
