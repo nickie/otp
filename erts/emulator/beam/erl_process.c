@@ -7524,7 +7524,6 @@ erl_create_process(Process* parent, /* Parent of process (default group leader).
     erts_aint32_t state = 0;
     erts_aint32_t prio = (erts_aint32_t) PRIORITY_NORMAL;
 #ifdef NICKIE_SHCOPY_SEND
-    Eterm *copy;
     DECLARE_INFO(info);
 #endif
 
@@ -7584,14 +7583,7 @@ erl_create_process(Process* parent, /* Parent of process (default group leader).
 #ifndef HYBRID
     BM_SWAP_TIMER(system,size);
 #ifdef NICKIE_SHCOPY_SPAWN
-#ifdef NICKIE_SHCOPY_DEBUG
-    erts_fprintf(stderr, "spawn args is %T\n", args);
-    erts_fprintf(stderr, "calc size...\n");
-#endif
     arg_size = copy_shared_calculate(args, &info);
-#ifdef NICKIE_SHCOPY_DEBUG
-    erts_fprintf(stderr, "size was: %u\n", arg_size);
-#endif
 #else
     arg_size = size_object(args);
 #endif
@@ -7680,16 +7672,7 @@ erl_create_process(Process* parent, /* Parent of process (default group leader).
 #else
     BM_SWAP_TIMER(system,copy);
 #ifdef NICKIE_SHCOPY_SPAWN
-#ifdef NICKIE_SHCOPY_DEBUG
-    erts_fprintf(stderr, "before copy...\n");
-#endif
-    copy = copy_shared_perform(args, &info, &p->htop, &p->off_heap);
-#ifdef NICKIE_SHCOPY_DEBUG
-    erts_fprintf(stderr, "after copy...\n");
-    erts_fprintf(stderr, "original is %T\n", args);
-    erts_fprintf(stderr, "copy is %T\n", copy);
-#endif
-    p->arg_reg[2] = copy;
+    p->arg_reg[2] = copy_shared_perform(args, &info, &p->htop, &p->off_heap);
     DESTROY_INFO(info);
 #else
     p->arg_reg[2] = copy_struct(args, arg_size, &p->htop, &p->off_heap);

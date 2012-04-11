@@ -32,6 +32,8 @@
 #include "erl_bits.h"
 #include "dtrace-wrapper.h"
 
+#define NICKIE_SHCOPY_DEBUG
+
 #ifdef HYBRID
 MA_STACK_DECLARE(src);
 MA_STACK_DECLARE(dst);
@@ -913,7 +915,7 @@ do {									\
 
 
 /*
- *  Copy object "obj" to process "p" preserving sharing.
+ *  Copy object "obj" preserving sharing.
  *  First half: count size and calculate sharing.
  *  NOTE: We do not support HALF_WORD (yet?).
  */
@@ -923,6 +925,9 @@ Uint copy_shared_calculate(Eterm obj, shcopy_info *info)
     Uint e;
     unsigned sz;
     Eterm* ptr;
+#ifdef NICKIE_SHCOPY_DEBUG
+    Eterm mypid;
+#endif
 
     DECLARE_EQUEUE_INIT_INFO(s, info);
     DECLARE_BITSTORE_INIT_INFO(b, info);
@@ -935,6 +940,12 @@ Uint copy_shared_calculate(Eterm obj, shcopy_info *info)
 
     if (IS_CONST(obj))
 	return 0;
+
+#ifdef NICKIE_SHCOPY_DEBUG
+    mypid = erts_get_current_pid();
+    erts_fprintf(stderr, "[pid=%T] message is %T\n", mypid, obj);
+    erts_fprintf(stderr, "[pid=%T] calc size...\n", mypid);
+#endif
 
     /* step #1:
        -------------------------------------------------------
@@ -1129,12 +1140,15 @@ Uint copy_shared_calculate(Eterm obj, shcopy_info *info)
 		info->shtable_start = ESTK_CONCAT(t,_start);
 		// single point of return: the size of the object
 		ASSERT(sum > 0);
+#ifdef NICKIE_SHCOPY_DEBUG
+		erts_fprintf(stderr, "[pid=%T] size was: %u\n", mypid, sum);
+#endif
 		return sum;
 	    }
 	    EQUEUE_GET(s, obj);
 	    break;
 	default:
-	    erl_exit(ERTS_ABORT_EXIT, "size_shared: bad tag for %#x\n", obj);
+	    erl_exit(ERTS_ABORT_EXIT, "[pid=%T] size_shared: bad tag for %#x\n", obj);
 	}
 	VERBOSE(DEBUG_NICKIE, ("\n"));
     }
@@ -1142,7 +1156,7 @@ Uint copy_shared_calculate(Eterm obj, shcopy_info *info)
 
 
 /*
- *  Copy object "obj" to process "p" preserving sharing.
+ *  Copy object "obj" preserving sharing.
  *  Second half: copy and restore the object.
  *  NOTE: We do not support HALF_WORD (yet?).
  */
@@ -1156,8 +1170,11 @@ Uint copy_shared_perform(Eterm obj, shcopy_info *info, Eterm** hpp, ErlOffHeap* 
     Eterm result;
     Eterm* resp;
     unsigned remaining;
-#ifdef DEBUG
+#if defined(DEBUG) || defined(NICKIE_SHCOPY_DEBUG)
     Eterm saved_obj = obj;
+#endif
+#ifdef NICKIE_SHCOPY_DEBUG
+    Eterm mypid;
 #endif
 
     DECLARE_EQUEUE_FROM_INFO(s, info);
@@ -1171,6 +1188,11 @@ Uint copy_shared_perform(Eterm obj, shcopy_info *info, Eterm** hpp, ErlOffHeap* 
 
     if (IS_CONST(obj))
 	return obj;
+
+#ifdef NICKIE_SHCOPY_DEBUG
+    mypid = erts_get_current_pid();
+    erts_fprintf(stderr, "[pid=%T] before copy...\n", mypid);
+#endif
 
     /* step #2: was performed before this function was called
        -------------------------------------------------------
@@ -1540,6 +1562,12 @@ all_clean:
     if (eq(saved_obj, result) == 0) {
 	erl_exit(ERTS_ABORT_EXIT, "copy not equal to source\n");
     }
+#endif
+
+#ifdef NICKIE_SHCOPY_DEBUG
+    erts_fprintf(stderr, "[pid=%T] after copy...\n", mypid);
+    erts_fprintf(stderr, "[pid=%T] original is %T\n", mypid, saved_obj);
+    erts_fprintf(stderr, "[pid=%T] copy is %T\n", mypid, result);
 #endif
 
     *hpp = hp;

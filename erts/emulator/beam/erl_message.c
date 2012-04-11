@@ -33,6 +33,8 @@
 #include "erl_binary.h"
 #include "dtrace-wrapper.h"
 
+#define NICKIE_SHCOPY_DEBUG
+
 ERTS_SCHED_PREF_QUICK_ALLOC_IMPL(message,
 				 ErlMessage,
 				 ERL_MESSAGE_BUF_SZ,
@@ -70,6 +72,10 @@ ErlHeapFragment*
 new_message_buffer(Uint size)
 {
     ErlHeapFragment* bp;
+
+#ifdef NICKIE_SHCOPY_DEBUG
+    erts_fprintf(stderr, "[pid=%T] new message buffer !!!\n", erts_get_current_pid());
+#endif
     bp = (ErlHeapFragment*) ERTS_HEAP_ALLOC(ERTS_ALC_T_HEAP_FRAG,
 					    ERTS_HEAP_FRAG_SIZE(size));
     ERTS_INIT_HEAP_FRAG(bp, size);
@@ -1106,19 +1112,11 @@ erts_send_message(Process* sender,
         Eterm *hp;
 	erts_aint32_t state;
 #ifdef NICKIE_SHCOPY_SEND
-	Eterm *copy;
 	DECLARE_INFO(info);
 #endif
 	BM_SWAP_TIMER(send,size);
 #ifdef NICKIE_SHCOPY_SEND
-#ifdef NICKIE_SHCOPY_DEBUG
-	erts_fprintf(stderr, "message is %T\n", message);
-	erts_fprintf(stderr, "calc size...\n");
-#endif
 	msize = copy_shared_calculate(message, &info);
-#ifdef NICKIE_SHCOPY_DEBUG
-	erts_fprintf(stderr, "size was: %u\n", msize);
-#endif
 #else
 	msize = size_object(message);
 #endif
@@ -1131,20 +1129,10 @@ erts_send_message(Process* sender,
 					   &state);
 	BM_SWAP_TIMER(send,copy);
 #ifdef NICKIE_SHCOPY_SEND
-#ifdef NICKIE_SHCOPY_DEBUG
-	erts_fprintf(stderr, "before copy...\n");
-#endif
-	copy = copy_shared_perform(message, &info, &hp, ohp);
-#ifdef NICKIE_SHCOPY_DEBUG
-	erts_fprintf(stderr, "after copy...\n");
-	erts_fprintf(stderr, "original is %T\n", message);
-	erts_fprintf(stderr, "copy is %T\n", copy);
-#endif
-	message = copy;
+	message = copy_shared_perform(message, &info, &hp, ohp);
 	DESTROY_INFO(info);
 #else
 	message = copy_struct(message, msize, &hp, ohp);
-	DESTROY_INFO(info);
 #endif
 	BM_MESSAGE_COPIED(msz);
 	BM_SWAP_TIMER(copy,send);
@@ -1280,4 +1268,3 @@ erts_deliver_exit_message(Eterm from, Process *to, ErtsProcLocks *to_locksp,
 			   );
     }
 }
-
