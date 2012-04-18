@@ -37,7 +37,7 @@
 #endif
 #include "dtrace-wrapper.h"
 
-#define NICKIE_SHCOPY_DEBUG
+#undef NICKIE_SHCOPY_DEBUG
 
 #define ERTS_INACT_WR_PB_LEAVE_MUCH_LIMIT 1
 #define ERTS_INACT_WR_PB_LEAVE_MUCH_PERCENTAGE 20

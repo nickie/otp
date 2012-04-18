@@ -33,7 +33,7 @@
 #include "erl_binary.h"
 #include "dtrace-wrapper.h"
 
-#define NICKIE_SHCOPY_DEBUG
+#undef NICKIE_SHCOPY_DEBUG
 
 ERTS_SCHED_PREF_QUICK_ALLOC_IMPL(message,
 				 ErlMessage,

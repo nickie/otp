@@ -32,7 +32,7 @@
 #include "erl_bits.h"
 #include "dtrace-wrapper.h"
 
-#define NICKIE_SHCOPY_DEBUG
+#undef NICKIE_SHCOPY_DEBUG
 
 #ifdef HYBRID
 MA_STACK_DECLARE(src);
@@ -92,8 +92,17 @@ Uint size_object(Eterm obj)
     Uint sum = 0;
     Eterm* ptr;
     int arity;
+#ifdef NICKIE_SHCOPY_DEBUG
+    Eterm mypid;
+#endif
 
     DECLARE_ESTACK(s);
+
+#ifdef NICKIE_SHCOPY_DEBUG
+    mypid = erts_get_current_pid();
+    erts_fprintf(stderr, "[pid=%T] size_object %p\n", mypid, obj);
+#endif
+
     for (;;) {
 	switch (primary_tag(obj)) {
 	case TAG_PRIMARY_LIST:
@@ -182,6 +191,9 @@ Uint size_object(Eterm obj)
 	pop_next:
 	    if (ESTACK_ISEMPTY(s)) {
 		DESTROY_ESTACK(s);
+#ifdef NICKIE_SHCOPY_DEBUG
+		erts_fprintf(stderr, "[pid=%T] size was: %u\n", mypid, sum);
+#endif
 		return sum;
 	    }
 	    obj = ESTACK_POP(s);
@@ -556,9 +568,17 @@ Eterm copy_struct(Eterm obj, Uint sz, Eterm** hpp, ErlOffHeap* off_heap)
     Eterm org_obj = obj;
     Uint org_sz = sz;
 #endif
+#ifdef NICKIE_SHCOPY_DEBUG
+    Eterm mypid;
+#endif
 
     if (IS_CONST(obj))
 	return obj;
+
+#ifdef NICKIE_SHCOPY_DEBUG
+    mypid = erts_get_current_pid();
+    erts_fprintf(stderr, "[pid=%T] copy_struct %p\n", mypid, obj);
+#endif
 
     DTRACE1(copy_struct, (int32_t)sz);
 
@@ -835,6 +855,9 @@ Eterm copy_struct(Eterm obj, Uint sz, Eterm** hpp, ErlOffHeap* off_heap)
     }
 #endif
     *hpp = (Eterm *) (hstart+hsize);
+#ifdef NICKIE_SHCOPY_DEBUG
+    erts_fprintf(stderr, "[pid=%T] result is at %p\n", mypid, res);
+#endif
     return res;
 }
 
@@ -943,8 +966,8 @@ Uint copy_shared_calculate(Eterm obj, shcopy_info *info)
 
 #ifdef NICKIE_SHCOPY_DEBUG
     mypid = erts_get_current_pid();
+    erts_fprintf(stderr, "[pid=%T] copy_shared_calculate %p\n", mypid, obj);
     erts_fprintf(stderr, "[pid=%T] message is %T\n", mypid, obj);
-    erts_fprintf(stderr, "[pid=%T] calc size...\n", mypid);
 #endif
 
     /* step #1:
@@ -1131,7 +1154,7 @@ Uint copy_shared_calculate(Eterm obj, shcopy_info *info)
 	    if (EQUEUE_ISEMPTY(s)) {
 		VERBOSE(DEBUG_NICKIE, ("\n"));
 		// add sentinel to the table
-		SHTABLE_PUSH(t, THE_NON_VALUE, THE_NON_VALUE, THE_NON_VALUE);
+		SHTABLE_PUSH(t, THE_NON_VALUE, THE_NON_VALUE, NULL);
 		// store persistent info
 		BITSTORE_RESET(b);
 		info->queue_start = EQUE_CONCAT(s,_start);
@@ -1191,7 +1214,7 @@ Uint copy_shared_perform(Eterm obj, shcopy_info *info, Eterm** hpp, ErlOffHeap* 
 
 #ifdef NICKIE_SHCOPY_DEBUG
     mypid = erts_get_current_pid();
-    erts_fprintf(stderr, "[pid=%T] before copy...\n", mypid);
+    erts_fprintf(stderr, "[pid=%T] copy_shared_perform %p\n", mypid, obj);
 #endif
 
     /* step #2: was performed before this function was called
@@ -1434,7 +1457,7 @@ Uint copy_shared_perform(Eterm obj, shcopy_info *info, Eterm** hpp, ErlOffHeap* 
 	    case EXTERNAL_PID_SUBTAG:
 	    case EXTERNAL_PORT_SUBTAG:
 	    case EXTERNAL_REF_SUBTAG: {
-		ExternalThing *etp = (ExternalThing *) ptr;
+		ExternalThing *etp = (ExternalThing *) hp;
 		sz = thing_arityval(hdr);
 		*resp = make_external(hp);
 		*hp++ = hdr;
@@ -1543,7 +1566,7 @@ all_clean:
     VERBOSE(DEBUG_NICKIE, ("\n"));
     for (e = 0; ; e += 4*sizeof(Eterm)) {
 	ptr = SHTABLE_REV(t, e);
-	if (ptr == THE_NON_VALUE)
+	if (ptr == NULL)
 	    break;
 	VERBOSE(DEBUG_NICKIE, ("[copy] restoring shared: %x\n", ptr));
 	/* entry was a list */
@@ -1565,9 +1588,9 @@ all_clean:
 #endif
 
 #ifdef NICKIE_SHCOPY_DEBUG
-    erts_fprintf(stderr, "[pid=%T] after copy...\n", mypid);
-    erts_fprintf(stderr, "[pid=%T] original is %T\n", mypid, saved_obj);
+    erts_fprintf(stderr, "[pid=%T] original was %T\n", mypid, saved_obj);
     erts_fprintf(stderr, "[pid=%T] copy is %T\n", mypid, result);
+    erts_fprintf(stderr, "[pid=%T] result is at %p\n", mypid, result);
 #endif
 
     *hpp = hp;
