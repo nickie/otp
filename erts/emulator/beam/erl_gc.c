@@ -37,7 +37,7 @@
 #endif
 #include "dtrace-wrapper.h"
 
-#undef NICKIE_SHCOPY_DEBUG
+#define NICKIE_SHCOPY_DEBUG
 
 #define ERTS_INACT_WR_PB_LEAVE_MUCH_LIMIT 1
 #define ERTS_INACT_WR_PB_LEAVE_MUCH_PERCENTAGE 20
@@ -951,7 +951,7 @@ do_minor(Process *p, Uint new_sz, Eterm* objv, int nobj)
     Eterm* n_heap;
 
 #ifdef NICKIE_SHCOPY_DEBUG
-    erts_fprintf(stderr, "[pid=%T] MINOR GC !!!\n", p->id);
+    VERBOSE_DEBUG("[pid=%T] MINOR GC: %p %p %p %p\n", p->id, HEAP_START(p), HEAP_END(p), OLD_HEAP(p), OLD_HEND(p));
 #endif
 
     n_htop = n_heap = (Eterm*) ERTS_HEAP_ALLOC(ERTS_ALC_T_HEAP,
@@ -1171,7 +1171,7 @@ major_collection(Process* p, int need, Eterm* objv, int nobj, Uint *recl)
     size_before = fragments + (HEAP_TOP(p) - HEAP_START(p));
 
 #ifdef NICKIE_SHCOPY_DEBUG
-    erts_fprintf(stderr, "[pid=%T] MAJOR GC !!!\n", p->id);
+    VERBOSE_DEBUG("[pid=%T] MAJOR GC: %p %p %p %p\n", p->id, HEAP_START(p), HEAP_END(p), OLD_HEAP(p), OLD_HEND(p));
 #endif
 
     /*

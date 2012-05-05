@@ -44,6 +44,8 @@
 #include "erl_async.h"
 #include "dtrace-wrapper.h"
 
+#define NICKIE_SHCOPY_DEBUG
+
 #define ERTS_RUNQ_CHECK_BALANCE_REDS_PER_SCHED (2000*CONTEXT_REDS)
 #define ERTS_RUNQ_CALL_CHECK_BALANCE_REDS \
   (ERTS_RUNQ_CHECK_BALANCE_REDS_PER_SCHED/2)
@@ -7672,7 +7674,7 @@ erl_create_process(Process* parent, /* Parent of process (default group leader).
 #else
     BM_SWAP_TIMER(system,copy);
 #ifdef NICKIE_SHCOPY_SPAWN
-    p->arg_reg[2] = copy_shared_perform(args, &info, &p->htop, &p->off_heap);
+    p->arg_reg[2] = copy_shared_perform(args, arg_size, &info, &p->htop, &p->off_heap);
     DESTROY_INFO(info);
 #else
     p->arg_reg[2] = copy_struct(args, arg_size, &p->htop, &p->off_heap);
@@ -8081,6 +8083,10 @@ delete_process(Process* p)
     ErlMessage* mp;
 
     VERBOSE(DEBUG_PROCESSES, ("Removing process: %T\n",p->id));
+
+#ifdef NICKIE_SHCOPY_DEBUG
+    VERBOSE_DEBUG("[pid=%T] delete process: %p %p %p %p\n", p->id, HEAP_START(p), HEAP_END(p), OLD_HEAP(p), OLD_HEND(p));
+#endif
 
     /* Cleanup psd */
 

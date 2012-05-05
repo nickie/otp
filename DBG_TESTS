@@ -1,0 +1,12 @@
+(compile OTP without my modifications)
+./otp_build tests $PWD/the_tests_vanilla
+echo "cd('the_tests_vanilla/test_server'), ts:install(), ts:run([emulator,kernel,stdlib,compiler], [batch])." | bin/cerl
+
+(compile OTP with my modifications)
+./otp_build tests $PWD/the_tests_nickie
+echo "cd('the_tests_nickie/test_server'), ts:install(), ts:run([emulator,kernel,stdlib,compiler], [batch])." | bin/cerl
+
+echo "cd('the_tests_nickie/test_server'), ts:install(), ts:run(emulator, nif_SUITE, [batch])." | bin/cerl
+echo "cd('the_tests_nickie/test_server'), ts:install(), ts:run(emulator, nif_SUITE, send3, [batch])." | bin/cerl
+
+echo "cd('lib/syntax_tools/src'), erts_debug:copy_shared(42), c(erl_syntax, native)." | bin/cerl -debug -smpdisable |& tee SEGV

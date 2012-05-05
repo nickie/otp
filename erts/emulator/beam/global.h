@@ -991,12 +991,18 @@ void erl_error(char*, va_list);
 /* This controls whether sharing-preserving copy is used by Erlang */
 
 #define NICKIE_SHCOPY_SEND
-#define NICKIE_SHCOPY_SPAWN
+#undef NICKIE_SHCOPY_SPAWN
 
 #if defined(NICKIE_SHCOPY_SEND) \
  || defined(NICKIE_SHCOPY_SPAWN)
 #undef NICKIE_SHCOPY_DEBUG
 #endif
+
+extern int flag_copy_shared;
+#define VERBOSE_DEBUG(...) do {		\
+  if (flag_copy_shared)			\
+    erts_fprintf(stderr, __VA_ARGS__);	\
+  } while(0)
 
 /* The persistent state while the sharing-preserving copier works */
 
@@ -1032,7 +1038,7 @@ do {									\
 void init_copy(void);
 Eterm copy_object(Eterm, Process*);
 Uint copy_shared_calculate(Eterm, shcopy_info*);
-Eterm copy_shared_perform(Eterm, shcopy_info*, Eterm**, ErlOffHeap*);
+Eterm copy_shared_perform(Eterm, Uint, shcopy_info*, Eterm**, ErlOffHeap*);
 
 #if HALFWORD_HEAP
 Uint size_object_rel(Eterm, Eterm*);

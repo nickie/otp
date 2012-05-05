@@ -33,7 +33,7 @@
 #include "erl_binary.h"
 #include "dtrace-wrapper.h"
 
-#undef NICKIE_SHCOPY_DEBUG
+#define NICKIE_SHCOPY_DEBUG
 
 ERTS_SCHED_PREF_QUICK_ALLOC_IMPL(message,
 				 ErlMessage,
@@ -73,12 +73,12 @@ new_message_buffer(Uint size)
 {
     ErlHeapFragment* bp;
 
-#ifdef NICKIE_SHCOPY_DEBUG
-    erts_fprintf(stderr, "[pid=%T] new message buffer !!!\n", erts_get_current_pid());
-#endif
     bp = (ErlHeapFragment*) ERTS_HEAP_ALLOC(ERTS_ALC_T_HEAP_FRAG,
 					    ERTS_HEAP_FRAG_SIZE(size));
     ERTS_INIT_HEAP_FRAG(bp, size);
+#ifdef NICKIE_SHCOPY_DEBUG
+    VERBOSE_DEBUG("[pid=%T] new message buffer %p\n", erts_get_current_pid(), bp->mem);
+#endif
     return bp;
 }
 
@@ -879,6 +879,9 @@ erts_msg_attached_data_size_aux(ErlMessage *msg)
 void
 erts_move_msg_attached_data_to_heap(Eterm **hpp, ErlOffHeap *ohp, ErlMessage *msg)
 {
+#ifdef NICKIE_SHCOPY_DEBUG
+    VERBOSE_DEBUG("[pid=%T] moving message buffer %p\n", erts_get_current_pid(), msg->data.heap_frag);
+#endif
     if (is_value(ERL_MESSAGE_TERM(msg)))
 	erts_move_msg_mbuf_to_heap(hpp, ohp, msg);
     else if (msg->data.dist_ext) {
@@ -1129,7 +1132,7 @@ erts_send_message(Process* sender,
 					   &state);
 	BM_SWAP_TIMER(send,copy);
 #ifdef NICKIE_SHCOPY_SEND
-	message = copy_shared_perform(message, &info, &hp, ohp);
+	message = copy_shared_perform(message, msize, &info, &hp, ohp);
 	DESTROY_INFO(info);
 #else
 	message = copy_struct(message, msize, &hp, ohp);
@@ -1173,7 +1176,7 @@ erts_send_message(Process* sender,
 	receiver->htop = hp + msize;
 	BM_SWAP_TIMER(send,copy);
 #ifdef NICKIE_SHCOPY_SEND
-	message = copy_shared_perform(message, &info, &hp, &receiver->off_heap);
+	message = copy_shared_perform(message, msize, &info, &hp, &receiver->off_heap);
 	DESTROY_INFO(info);
 #else
 	message = copy_struct(message, msize, &hp, &receiver->off_heap);
