@@ -2,7 +2,7 @@
 
 import sys, re
 
-verbose = True
+verbose = False
 
 def inheap (ptr, heap):
     return heap[0] <= ptr and ptr < heap[1] or \
@@ -41,7 +41,7 @@ def store (pid, id, data, next, fun):
             print "[pid={0}] GC invoked while in exclusive state {1}".format(pid, last)
         if pending_exclusive and verbose:
             print "[pid={0}] GC invoked while {1} was/were pending in exclusive state".format(pid, pending_exclusive)
-    elif id not in [10, 13, 14, 15, 16, 17]:
+    elif id not in [10, 13, 14, 15, 16, 17, 18]:
         try:
             next_exclusive = next[0]
             next_expecting = next[1]
@@ -291,6 +291,8 @@ def fun_untable (pid, entry, data):
         print "[pid={0}] not tabled {1:x}, when untabling WTF?".format(pid, data)
         sys.exit(0)
     entry['tabled'].remove(data)
+def fun_bypassed (pid, entry, data):
+    pass
 
 prefix_list = [
     ( 0, "MINOR GC:", ["ptr", "ptr", "ptr", "ptr"], None, fun_gc),
@@ -311,7 +313,8 @@ prefix_list = [
     (14, "unmangling", ["skip", "ptr"], None, fun_unmangle),
     (15, "tabling", ["skip", "ptr"], None, fun_table),
     (16, "tabled", ["skip", "ptr", "skip", "ptr"], None, fun_table_assoc),
-    (17, "untabling", ["skip", "ptr"], None, fun_untable)
+    (17, "untabling", ["skip", "ptr"], None, fun_untable),
+    (18, "bypassed copying", ["ptr", "skip", "term"], None, fun_bypassed)
     ]
 
 def parse_message(msg):

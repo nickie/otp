@@ -44,7 +44,7 @@
 #include "erl_async.h"
 #include "dtrace-wrapper.h"
 
-#define NICKIE_SHCOPY_DEBUG
+#undef NICKIE_SHCOPY_DEBUG
 
 #define ERTS_RUNQ_CHECK_BALANCE_REDS_PER_SCHED (2000*CONTEXT_REDS)
 #define ERTS_RUNQ_CALL_CHECK_BALANCE_REDS \

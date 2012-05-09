@@ -991,11 +991,12 @@ void erl_error(char*, va_list);
 /* This controls whether sharing-preserving copy is used by Erlang */
 
 #define NICKIE_SHCOPY_SEND
-#undef NICKIE_SHCOPY_SPAWN
+#define NICKIE_SHCOPY_SPAWN
 
 #if defined(NICKIE_SHCOPY_SEND) \
  || defined(NICKIE_SHCOPY_SPAWN)
-#undef NICKIE_SHCOPY_DEBUG
+#define NICKIE_SHCOPY
+#define NICKIE_SHCOPY_DEBUG
 #endif
 
 extern int flag_copy_shared;
@@ -2120,6 +2121,10 @@ erts_alloc_message_heap_state(Uint size,
 	goto allocate_in_mbuf;
 #endif
 
+#ifdef NICKIE_SHCOPY
+    if (size == 0)          // without SHCOPY, size was always > 0
+	return NULL;        // we'll make sure this is never used
+#endif
     if (size > (Uint) INT_MAX)
 	erl_exit(ERTS_ABORT_EXIT, "HUGE size (%beu)\n", size);
 
@@ -2289,3 +2294,11 @@ dtrace_fun_decode(Process *process,
 #endif /* #if ERTS_GLB_INLINE_INCL_FUNC_DEF */
 
 #endif /* !__GLOBAL_H__ */
+
+/*
+Local Variables:
+  c-basic-offset: 4
+  c-indent-level: 4
+  indent-tabs-mode: t
+End:
+*/

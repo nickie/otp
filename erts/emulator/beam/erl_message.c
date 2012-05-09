@@ -33,7 +33,7 @@
 #include "erl_binary.h"
 #include "dtrace-wrapper.h"
 
-#define NICKIE_SHCOPY_DEBUG
+#undef NICKIE_SHCOPY_DEBUG
 
 ERTS_SCHED_PREF_QUICK_ALLOC_IMPL(message,
 				 ErlMessage,
@@ -649,7 +649,7 @@ erts_move_msg_mbuf_to_heap(Eterm** hpp, ErlOffHeap* off_heap, ErlMessage *msg)
 #ifdef USE_VM_PROBES
     dbg_utag = copy_struct(utag, dbg_utag_sz, &dbg_hp, &dbg_bp->off_heap);
 #endif
-   dbg_thp_start = *hpp;
+    dbg_thp_start = *hpp;
 #endif
 
     if (bp->next != NULL) {
@@ -684,8 +684,15 @@ erts_move_msg_mbuf_to_heap(Eterm** hpp, ErlOffHeap* off_heap, ErlMessage *msg)
 	    break;
 	case TAG_PRIMARY_LIST:
 	case TAG_PRIMARY_BOXED:
+#ifdef NICKIE_SHCOPY
+	    if (in_heapfrag(ptr_val(val), bp))
+		*hp++ = offset_ptr(val, offs);
+	    else
+		*hp++ = val;
+#else
 	    ASSERT(in_heapfrag(ptr_val(val), bp));
 	    *hp++ = offset_ptr(val, offs);
+#endif
 	    break;
 	case TAG_PRIMARY_HEADER:
 	    *hp++ = val;
@@ -1271,3 +1278,11 @@ erts_deliver_exit_message(Eterm from, Process *to, ErtsProcLocks *to_locksp,
 			   );
     }
 }
+
+/*
+Local Variables:
+  c-basic-offset: 4
+  c-indent-level: 4
+  indent-tabs-mode: t
+End:
+*/

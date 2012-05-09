@@ -32,8 +32,9 @@
 #include "erl_bits.h"
 #include "dtrace-wrapper.h"
 
-#define NICKIE_SHCOPY_DEBUG
-int flag_copy_shared = 0;
+#undef NICKIE_SHCOPY_DEBUG
+// this controls if copy_shared is used rightaway or after it's explicitly called
+int flag_copy_shared = 1;
 
 #ifdef HYBRID
 MA_STACK_DECLARE(src);
@@ -252,6 +253,16 @@ do {									    \
 
 
 /*
+ *  Is an object in the local heap of a process?
+ */
+
+#define INHEAP(p, ptr) (0 ||                                \
+  (HEAP_START(p) <= ptr && ptr < HEAP_END(p)) ||            \
+  (OLD_HEAP(p) && OLD_HEAP(p) <= ptr && ptr < OLD_HEND(p))  \
+)
+
+
+/*
  *  Return the real size of an object and find sharing information
  *  This currently returns the same as erts_debug:size/1.
  *  It is argued whether the size of subterms in constant pools
@@ -266,9 +277,15 @@ Uint size_shared(Eterm obj)
     Eterm saved_obj = obj;
     Uint sum = 0;
     Eterm* ptr;
+    Process* myself;
 
     DECLARE_ESTACK(s);
     DECLARE_BITSTORE(b);
+
+    myself = erts_get_current_process();
+    if (myself == NULL)
+	return size_object(obj);
+
     for (;;) {
 	VERBOSE(DEBUG_NICKIE, ("[size] visiting: %x ", obj));
 	switch (primary_tag(obj)) {
@@ -276,6 +293,10 @@ Uint size_shared(Eterm obj)
 	    Eterm head, tail;
 	    VERBOSE(DEBUG_NICKIE, ("L"));
 	    ptr = list_val_rel(obj, base);
+	    /* we're not counting anything that's outside our heap !!! */
+	    if (!INHEAP(myself, ptr)) {
+		goto pop_next;
+	    }
 	    head = CAR(ptr);
 	    tail = CDR(ptr);
 	    /* if it's visited, don't count it */
@@ -314,6 +335,10 @@ Uint size_shared(Eterm obj)
 	    Eterm hdr;
 	    VERBOSE(DEBUG_NICKIE, ("B"));
 	    ptr = boxed_val_rel(obj, base);
+	    /* we're not counting anything that's outside our heap !!! */
+	    if (!INHEAP(myself, ptr)) {
+		goto pop_next;
+	    }
 	    hdr = *ptr;
 	    /* if it's visited, don't count it */
 	    if (primary_tag(hdr) != TAG_PRIMARY_HEADER) {
@@ -445,6 +470,9 @@ cleanup:
 	    Eterm head, tail;
 	    VERBOSE(DEBUG_NICKIE, ("L"));
 	    ptr = list_val_rel(obj, base);
+	    if (!INHEAP(myself, ptr)) {
+		goto pop_next;
+	    }
 	    head = CAR(ptr);
 	    tail = CDR(ptr);
 	    /* if not already clean, clean it up */
@@ -478,6 +506,9 @@ cleanup:
 	    Eterm hdr;
 	    VERBOSE(DEBUG_NICKIE, ("B"));
 	    ptr = boxed_val_rel(obj, base);
+	    if (!INHEAP(myself, ptr)) {
+		goto pop_next;
+	    }
 	    hdr = *ptr;
 	    /* if not already clean, clean it up */
 	    if (primary_tag(hdr) == TAG_PRIMARY_HEADER) {
@@ -941,15 +972,6 @@ do {									\
     Eterm* ESTK_CONCAT(s,_start) = info->shtable_start
 
 /*
- *  Is an object in the local heap of a process?
- */
-
-#define INHEAP(p, ptr) (0 ||                                \
-  (HEAP_START(p) <= ptr && ptr < HEAP_END(p)) ||            \
-  (OLD_HEAP(p) && OLD_HEAP(p) <= ptr && ptr < OLD_HEND(p))  \
-)
-
-/*
  *  Copy object "obj" preserving sharing.
  *  First half: count size and calculate sharing.
  *  NOTE: We do not support HALF_WORD (yet?).
@@ -1009,10 +1031,12 @@ Uint copy_shared_calculate(Eterm obj, shcopy_info *info)
 	    VERBOSE(DEBUG_NICKIE, ("L"));
 	    ptr = list_val_rel(obj, base);
 	    /* off heap list pointers are copied verbatim */
-	    if (1 && !INHEAP(myself, ptr)) {
-		VERBOSE_DEBUG("[pid=%T] bypassed copying %p: %T\n", myself->id, ptr, obj);
+	    if (!INHEAP(myself, ptr)) {
+#ifdef NICKIE_SHCOPY_DEBUG
+		VERBOSE_DEBUG("[pid=%T] bypassed copying %p is %T\n", myself->id, ptr, obj);
 		if (myself->mbuf != NULL)
-		    VERBOSE_DEBUG("BUT !!! there are message buffers!\n");
+		    VERBOSE_DEBUG("[pid=%T] BUT !!! there are message buffers!\n", myself->id);
+#endif
 		VERBOSE(DEBUG_NICKIE, ("#"));
 		goto pop_next;
 	    }
@@ -1025,7 +1049,9 @@ Uint copy_shared_calculate(Eterm obj, shcopy_info *info)
 		VERBOSE(DEBUG_NICKIE, ("!"));
 		if (tail != THE_NON_VALUE) {
 		    e = SHTABLE_NEXT(t);
+#ifdef NICKIE_SHCOPY_DEBUG
 		    VERBOSE_DEBUG("[pid=%T] tabling L %p\n", myself->id, ptr);
+#endif
 		    SHTABLE_PUSH(t, head, tail, ptr);
 		    CAR(ptr) = (e << _TAG_PRIMARY_SIZE) | LIST_SHARED_UNPROCESSED;
 		    CDR(ptr) = THE_NON_VALUE;
@@ -1072,10 +1098,12 @@ Uint copy_shared_calculate(Eterm obj, shcopy_info *info)
 	    VERBOSE(DEBUG_NICKIE, ("B"));
 	    ptr = boxed_val_rel(obj, base);
 	    /* off heap pointers to boxes are copied verbatim */
-	    if (1 && !INHEAP(myself, ptr)) {
-		VERBOSE_DEBUG("[pid=%T] bypassed copying %p: %T\n", myself->id, ptr, obj);
+	    if (!INHEAP(myself, ptr)) {
+#ifdef NICKIE_SHCOPY_DEBUG
+		VERBOSE_DEBUG("[pid=%T] bypassed copying %p is %T\n", myself->id, ptr, obj);
 		if (myself->mbuf != NULL)
-		    VERBOSE_DEBUG("BUT !!! there are message buffers!\n");
+		    VERBOSE_DEBUG("[pid=%T] BUT !!! there are message buffers!\n", myself->id);
+#endif
 		VERBOSE(DEBUG_NICKIE, ("#"));
 		goto pop_next;
 	    }
@@ -1086,7 +1114,9 @@ Uint copy_shared_calculate(Eterm obj, shcopy_info *info)
 		VERBOSE(DEBUG_NICKIE, ("!"));
 		if (primary_tag(hdr) == BOXED_VISITED) {
 		    e = SHTABLE_NEXT(t);
+#ifdef NICKIE_SHCOPY_DEBUG
 		    VERBOSE_DEBUG("[pid=%T] tabling B %p\n", myself->id, ptr);
+#endif
 		    SHTABLE_PUSH(t, hdr, THE_NON_VALUE, ptr);
 		    *ptr = (e << _TAG_PRIMARY_SIZE) | BOXED_SHARED_UNPROCESSED;
 		}
@@ -1292,7 +1322,7 @@ Uint copy_shared_perform(Eterm obj, Uint size, shcopy_info *info, Eterm** hpp, E
 	    VERBOSE(DEBUG_NICKIE, ("L"));
 	    ptr = list_val_rel(obj, base);
 	    /* off heap list pointers are copied verbatim */
-	    if (1 && !INHEAP(myself, ptr)) {
+	    if (!INHEAP(myself, ptr)) {
 		VERBOSE(DEBUG_NICKIE, ("#"));
 		*resp = obj;
 		goto cleanup_next;
@@ -1316,7 +1346,9 @@ Uint copy_shared_perform(Eterm obj, Uint size, shcopy_info *info, Eterm** hpp, E
 		    head = SHTABLE_X(t, e);
 		    tail = SHTABLE_Y(t, e);
 		    ptr = &(SHTABLE_X(t, e));
+#ifdef NICKIE_SHCOPY_DEBUG
 		    VERBOSE_DEBUG("[pid=%T] tabled L %p is %p\n", myself->id, ptr, SHTABLE_REV(t, e));
+#endif
 		    SHTABLE_FWD_UPD(t, e, hp);
 		}
 	    }
@@ -1367,7 +1399,7 @@ Uint copy_shared_perform(Eterm obj, Uint size, shcopy_info *info, Eterm** hpp, E
 	    VERBOSE(DEBUG_NICKIE, ("B"));
 	    ptr = boxed_val_rel(obj, base);
 	    /* off heap pointers to boxes are copied verbatim */
-	    if (1 && !INHEAP(myself, ptr)) {
+	    if (!INHEAP(myself, ptr)) {
 		VERBOSE(DEBUG_NICKIE, ("#"));
 		*resp = obj;
 		goto cleanup_next;
@@ -1392,8 +1424,10 @@ Uint copy_shared_perform(Eterm obj, Uint size, shcopy_info *info, Eterm** hpp, E
 		*ptr = (hdr - primary_tag(hdr)) + BOXED_SHARED_PROCESSED;
 		hdr = SHTABLE_X(t, e);
 		ASSERT(primary_tag(hdr) == BOXED_VISITED);
+#ifdef NICKIE_SHCOPY_DEBUG
 		VERBOSE_DEBUG("[pid=%T] tabled B %p is %p\n", myself->id, ptr, SHTABLE_REV(t, e));
 		VERBOSE_DEBUG("[pid=%T] unmangling B %p\n", myself->id, ptr);
+#endif
 		SHTABLE_X(t, e) = hdr = (hdr - BOXED_VISITED) + TAG_PRIMARY_HEADER;
 		SHTABLE_FWD_UPD(t, e, hp);
 		break;
