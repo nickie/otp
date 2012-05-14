@@ -10,3 +10,5 @@ echo "cd('the_tests_nickie/test_server'), ts:install(), ts:run(emulator, nif_SUI
 echo "cd('the_tests_nickie/test_server'), ts:install(), ts:run(emulator, nif_SUITE, send3, [batch])." | bin/cerl
 
 echo "cd('lib/syntax_tools/src'), erts_debug:copy_shared(42), c(erl_syntax, native)." | bin/cerl -debug -smpdisable |& tee SEGV
+
+echo "cd('the_tests_nickie/compiler_test'), c(bs_bit_binaries_inline_SUITE, [inline])." | bin/cerl -debug -smpdisable |& tee SEGV

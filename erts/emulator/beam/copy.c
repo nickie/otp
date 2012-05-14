@@ -1523,6 +1523,17 @@ Uint copy_shared_perform(Eterm obj, Uint size, shcopy_info *info, Eterm** hpp, E
 		real_size = size+extra_bytes;
 		ptr = binary_val(real_bin);
 		*resp = make_binary(hp);
+		if (extra_bytes != 0) {
+		    ErlSubBin* res = (ErlSubBin *) hp;
+		    hp += ERL_SUB_BIN_SIZE;
+		    res->thing_word = HEADER_SUB_BIN;
+		    res->size = size;
+		    res->bitsize = bit_size;
+		    res->bitoffs = bit_offset;
+		    res->offs = 0;
+		    res->is_writable = 0;
+		    res->orig = make_binary(hp);
+		}
 		if (thing_subtag(*ptr) == HEAP_BINARY_SUBTAG) {
 		    ErlHeapBin* from = (ErlHeapBin *) ptr;
 		    ErlHeapBin* to = (ErlHeapBin *) hp;
@@ -1547,18 +1558,6 @@ Uint copy_shared_perform(Eterm obj, Uint size, shcopy_info *info, Eterm** hpp, E
 		    to->flags = 0;
 		    off_heap->first = (struct erl_off_heap_header*) to;
 		    OH_OVERHEAD(off_heap, to->size / sizeof(Eterm));
-		}
-		if (extra_bytes != 0) {
-		    ErlSubBin* res = (ErlSubBin *) hp;
-		    hp += ERL_SUB_BIN_SIZE;
-		    res->thing_word = HEADER_SUB_BIN;
-		    res->size = size;
-		    res->bitsize = bit_size;
-		    res->bitoffs = bit_offset;
-		    res->offs = 0;
-		    res->is_writable = 0;
-		    res->orig = *resp;
-		    *resp = make_binary((Eterm *) res);
 		}
 		goto cleanup_next;
 	    }
@@ -1617,27 +1616,29 @@ Uint copy_shared_perform(Eterm obj, Uint size, shcopy_info *info, Eterm** hpp, E
 			    break;
 			}
 			case SUB_BINARY_SUBTAG: {
-			    Eterm real_bin;
-			    Uint bitsize;
-			    Uint bitoffs;
+			    ErlSubBin* sb = (ErlSubBin *) hscan;
+			    Eterm real_bin = sb->orig;
+			    Uint bit_offset = sb->bitoffs;
+			    Uint bit_size = sb -> bitsize;
+			    size_t size = sb->size;
 			    Uint extra_bytes;
-			    Eterm hdr;
-			    ERTS_DECLARE_DUMMY(Uint offset); /* Not used. */
-			    ERTS_GET_REAL_BIN_REL(*hscan, real_bin, offset, bitoffs, bitsize, base);
-			    if ((bitsize + bitoffs) > 8) {
-				hscan += ERL_SUB_BIN_SIZE;
+			    Uint real_size;
+			    if (bit_size + bit_offset > 8) {
 				extra_bytes = 2;
-			    } else if ((bitsize + bitoffs) > 0) {
-				hscan += ERL_SUB_BIN_SIZE;
+			    } else if (bit_size + bit_offset > 0) {
 				extra_bytes = 1;
 			    } else {
 				extra_bytes = 0;
 			    }
-			    hdr = *binary_val_rel(real_bin, base);
-			    if (thing_subtag(hdr) == REFC_BINARY_SUBTAG) {
+			    real_size = size + extra_bytes;
+			    if (thing_subtag(*binary_val(real_bin) & ~BOXED_VISITED_MASK) == HEAP_BINARY_SUBTAG) {
+				hscan += heap_bin_size(real_size);
+			    }
+			    else {
 				hscan += PROC_BIN_SIZE;
-			    } else {
-				hscan += heap_bin_size(binary_size_rel(obj,base)+extra_bytes);
+			    }
+			    if (extra_bytes != 0) {
+				hscan += ERL_SUB_BIN_SIZE;
 			    }
 			    break;
 			}
@@ -1697,7 +1698,7 @@ all_clean:
 
 #ifdef DEBUG
     if (eq(saved_obj, result) == 0) {
-	erl_exit(ERTS_ABORT_EXIT, "copy not equal to source\n");
+	erl_exit(ERTS_ABORT_EXIT, "copy (shared) not equal to source\n");
     }
 #endif
 
