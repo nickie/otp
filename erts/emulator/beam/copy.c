@@ -1162,54 +1162,33 @@ Uint copy_shared_calculate(Eterm obj, shcopy_info *info)
 		goto pop_next;
 	    }
 	    case SUB_BINARY_SUBTAG: {
-		Eterm real_bin;
-		Uint bitsize;
-		Uint bitoffs;
+		ErlSubBin* sb = (ErlSubBin *) ptr;
+		Eterm real_bin = sb->orig;
+		Uint bit_offset = sb->bitoffs;
+		Uint bit_size = sb->bitsize;
+		size_t size = sb->size;
 		Uint extra_bytes;
 		Eterm hdr;
-#if 0
-		ERTS_DECLARE_DUMMY(Uint offset); /* Not used. */
-		ERTS_GET_REAL_BIN_REL(obj, real_bin, offset, bitoffs, bitsize, base);
-#else
-		/* not using ERTS_GET_REAL_BIN_REL here
-		   because we need to forget if it's visited */
-		ErlSubBin* _sb = (ErlSubBin *) ptr;
-		if ((_sb->thing_word & ~BOXED_VISITED_MASK) == HEADER_SUB_BIN) {
-		    VERBOSE(DEBUG_NICKIE, ("/B1"));
-		    real_bin = _sb->orig;
-		    bitoffs = _sb->bitoffs;
-		    bitsize = _sb->bitsize;
-		} else {
-		    VERBOSE(DEBUG_NICKIE, ("/B2"));
-		    real_bin = obj;
-		    bitoffs = bitsize = 0;
-		}
-		/* end of ERTS_GET_REAL_BIN_REL */
-#endif
-		if ((bitsize + bitoffs) > 8) {
+		ASSERT((sb->thing_word & ~BOXED_VISITED_MASK) == HEADER_SUB_BIN);
+		if (bit_size + bit_offset > 8) {
 		    sum += ERL_SUB_BIN_SIZE;
 		    extra_bytes = 2;
-		} else if ((bitsize + bitoffs) > 0) {
+		} else if (bit_size + bit_offset > 0) {
 		    sum += ERL_SUB_BIN_SIZE;
 		    extra_bytes = 1;
 		} else {
 		    extra_bytes = 0;
 		}
-#if 0
-		hdr = *binary_val_rel(real_bin, base);
-#else
-		/* this cannot be checked so easily */
 		ASSERT(is_boxed(rterm2wterm(real_bin, base)) &&
 		       (((*boxed_val(rterm2wterm(real_bin, base))) &
 			 (_TAG_HEADER_MASK - _BINARY_XXX_MASK - BOXED_VISITED_MASK))
 			== _TAG_HEADER_REFC_BIN));
 		hdr = *_unchecked_binary_val(rterm2wterm(real_bin, base));
-		/* end of binary_val_rel */
-#endif
-		if (thing_subtag(hdr) == REFC_BINARY_SUBTAG) {
-		    sum += PROC_BIN_SIZE;
+		if (thing_subtag(hdr) == HEAP_BINARY_SUBTAG) {
+		    sum += heap_bin_size(size+extra_bytes);
 		} else {
-		    sum += heap_bin_size(binary_size_rel(obj,base)+extra_bytes);
+		    ASSERT(thing_subtag(hdr) == REFC_BINARY_SUBTAG);
+		    sum += PROC_BIN_SIZE;
 		}
 		goto pop_next;
 	    }
@@ -1508,11 +1487,12 @@ Uint copy_shared_perform(Eterm obj, Uint size, shcopy_info *info, Eterm** hpp, E
 		ErlSubBin* sb = (ErlSubBin *) ptr;
 		Eterm real_bin = sb->orig;
 		Uint bit_offset = sb->bitoffs;
-		Uint bit_size = sb -> bitsize;
+		Uint bit_size = sb->bitsize;
 		Uint offset = sb->offs;
 		size_t size = sb->size;
 		Uint extra_bytes;
 		Uint real_size;
+		ASSERT((sb->thing_word & ~BOXED_VISITED_MASK) == HEADER_SUB_BIN);
 		if ((bit_size + bit_offset) > 8) {
 		    extra_bytes = 2;
 		} else if ((bit_size + bit_offset) > 0) {
@@ -1521,7 +1501,11 @@ Uint copy_shared_perform(Eterm obj, Uint size, shcopy_info *info, Eterm** hpp, E
 		    extra_bytes = 0;
 		}
 		real_size = size+extra_bytes;
-		ptr = binary_val(real_bin);
+		ASSERT(is_boxed(rterm2wterm(real_bin, base)) &&
+		       (((*boxed_val(rterm2wterm(real_bin, base))) &
+			 (_TAG_HEADER_MASK - _BINARY_XXX_MASK - BOXED_VISITED_MASK))
+			== _TAG_HEADER_REFC_BIN));
+		ptr = _unchecked_binary_val(rterm2wterm(real_bin, base));
 		*resp = make_binary(hp);
 		if (extra_bytes != 0) {
 		    ErlSubBin* res = (ErlSubBin *) hp;
@@ -1617,29 +1601,8 @@ Uint copy_shared_perform(Eterm obj, Uint size, shcopy_info *info, Eterm** hpp, E
 			}
 			case SUB_BINARY_SUBTAG: {
 			    ErlSubBin* sb = (ErlSubBin *) hscan;
-			    Eterm real_bin = sb->orig;
-			    Uint bit_offset = sb->bitoffs;
-			    Uint bit_size = sb -> bitsize;
-			    size_t size = sb->size;
-			    Uint extra_bytes;
-			    Uint real_size;
-			    if (bit_size + bit_offset > 8) {
-				extra_bytes = 2;
-			    } else if (bit_size + bit_offset > 0) {
-				extra_bytes = 1;
-			    } else {
-				extra_bytes = 0;
-			    }
-			    real_size = size + extra_bytes;
-			    if (thing_subtag(*binary_val(real_bin) & ~BOXED_VISITED_MASK) == HEAP_BINARY_SUBTAG) {
-				hscan += heap_bin_size(real_size);
-			    }
-			    else {
-				hscan += PROC_BIN_SIZE;
-			    }
-			    if (extra_bytes != 0) {
-				hscan += ERL_SUB_BIN_SIZE;
-			    }
+			    ASSERT(sb->bitoffs + sb->bitsize > 0);
+			    hscan += ERL_SUB_BIN_SIZE;
 			    break;
 			}
 			default:
