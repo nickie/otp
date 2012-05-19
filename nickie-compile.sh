@@ -5,6 +5,6 @@ CORES=16
 # ./configure
 make -j$CORES || exit 1
 cd erts/emulator
-env ERL_TOP=/home/nickie/Projects/release/otp make -j$CORES debug FLAVOR=plain
-env ERL_TOP=/home/nickie/Projects/release/otp make -j$CORES debug FLAVOR=smp
+env ERL_TOP=$PWD make -j$CORES debug FLAVOR=plain
+env ERL_TOP=$PWD make -j$CORES debug FLAVOR=smp
 cd ../..

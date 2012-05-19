@@ -260,6 +260,7 @@ do {									    \
   (HEAP_START(p) <= ptr && ptr < HEAP_END(p)) ||            \
   (OLD_HEAP(p) && OLD_HEAP(p) <= ptr && ptr < OLD_HEND(p))  \
 )
+#define COUNT_OFF_HEAP 0
 
 
 /*
@@ -279,7 +280,7 @@ Uint size_shared(Eterm obj)
     Eterm* ptr;
     Process* myself;
 
-    DECLARE_ESTACK(s);
+    DECLARE_EQUEUE(s);
     DECLARE_BITSTORE(b);
 
     myself = erts_get_current_process();
@@ -294,7 +295,7 @@ Uint size_shared(Eterm obj)
 	    VERBOSE(DEBUG_NICKIE, ("L"));
 	    ptr = list_val_rel(obj, base);
 	    /* we're not counting anything that's outside our heap !!! */
-	    if (!INHEAP(myself, ptr)) {
+	    if (!COUNT_OFF_HEAP && !INHEAP(myself, ptr)) {
 		goto pop_next;
 	    }
 	    head = CAR(ptr);
@@ -326,7 +327,7 @@ Uint size_shared(Eterm obj)
 	    /* and count it */
 	    sum += 2;
 	    if (!IS_CONST(head)) {
-		ESTACK_PUSH(s, head);
+		EQUEUE_PUT(s, head);
 	    }
 	    obj = tail;
 	    break;
@@ -336,7 +337,7 @@ Uint size_shared(Eterm obj)
 	    VERBOSE(DEBUG_NICKIE, ("B"));
 	    ptr = boxed_val_rel(obj, base);
 	    /* we're not counting anything that's outside our heap !!! */
-	    if (!INHEAP(myself, ptr)) {
+	    if (!COUNT_OFF_HEAP && !INHEAP(myself, ptr)) {
 		goto pop_next;
 	    }
 	    hdr = *ptr;
@@ -358,14 +359,13 @@ Uint size_shared(Eterm obj)
 		    VERBOSE(DEBUG_NICKIE, ("e"));
 		    goto pop_next;
 		}
-		while (arity-- > 1) {
+		while (arity-- > 0) {
 		    obj = *++ptr;
 		    if (!IS_CONST(obj)) {
-			ESTACK_PUSH(s, obj);
+			EQUEUE_PUT(s, obj);
 		    }
 		}
-		obj = *++ptr;
-		break;
+		goto pop_next;
 	    }
 	    case FUN_SUBTAG: {
 		ErlFunThing* funp = (ErlFunThing *) ptr;
@@ -374,64 +374,35 @@ Uint size_shared(Eterm obj)
 		VERBOSE(DEBUG_NICKIE, ("/F"));
 		sum += 1 /* header */ + sz + eterms;
 		ptr += 1 /* header */ + sz;
-		while (eterms-- > 1) {
+		while (eterms-- > 0) {
 		    obj = *ptr++;
 		    if (!IS_CONST(obj)) {
-			ESTACK_PUSH(s, obj);
+			EQUEUE_PUT(s, obj);
 		    }
 		}
-		obj = *ptr;
-		break;
+		goto pop_next;
 	    }
 	    case SUB_BINARY_SUBTAG: {
-		Eterm real_bin;
-		Uint bitsize;
-		Uint bitoffs;
+		ErlSubBin* sb = (ErlSubBin *) ptr;
 		Uint extra_bytes;
 		Eterm hdr;
-#if 0
-		ERTS_DECLARE_DUMMY(Uint offset); /* Not used. */
-		ERTS_GET_REAL_BIN_REL(obj, real_bin, offset, bitoffs, bitsize, base);
-#else
-		/* not using ERTS_GET_REAL_BIN_REL here
-		   because we need to forget if it's visited */
-		ErlSubBin* _sb = (ErlSubBin *) ptr;
-		if ((_sb->thing_word & ~BOXED_VISITED_MASK) == HEADER_SUB_BIN) {
-		    VERBOSE(DEBUG_NICKIE, ("/B1"));
-		    real_bin = _sb->orig;
-		    bitoffs = _sb->bitoffs;
-		    bitsize = _sb->bitsize;
-		} else {
-		    VERBOSE(DEBUG_NICKIE, ("/B2"));
-		    real_bin = obj;
-		    bitoffs = bitsize = 0;
-		}
-		/* end of ERTS_GET_REAL_BIN_REL */
-#endif
-		if ((bitsize + bitoffs) > 8) {
+		ASSERT((sb->thing_word & ~BOXED_VISITED_MASK) == HEADER_SUB_BIN);
+		if (sb->bitsize + sb->bitoffs > 8) {
 		    sum += ERL_SUB_BIN_SIZE;
 		    extra_bytes = 2;
-		} else if ((bitsize + bitoffs) > 0) {
+		} else if (sb->bitsize + sb->bitoffs > 0) {
 		    sum += ERL_SUB_BIN_SIZE;
 		    extra_bytes = 1;
 		} else {
 		    extra_bytes = 0;
 		}
-#if 0
-		hdr = *binary_val_rel(real_bin, base);
-#else
-		/* this cannot be checked so easily */
-		ASSERT(is_boxed(rterm2wterm(real_bin, base)) &&
-		       (((*boxed_val(rterm2wterm(real_bin, base))) &
-			 (_TAG_HEADER_MASK - _BINARY_XXX_MASK - BOXED_VISITED_MASK))
-			== _TAG_HEADER_REFC_BIN));
-		hdr = *_unchecked_binary_val(rterm2wterm(real_bin, base));
-		/* end of binary_val_rel */
-#endif
+		ptr = binary_val_rel(sb->orig, base);
+		hdr = (*ptr) & ~BOXED_VISITED_MASK;
 		if (thing_subtag(hdr) == REFC_BINARY_SUBTAG) {
 		    sum += PROC_BIN_SIZE;
 		} else {
-		    sum += heap_bin_size(binary_size_rel(obj,base)+extra_bytes);
+		    ASSERT(thing_subtag(hdr) == HEAP_BINARY_SUBTAG);
+		    sum += heap_bin_size(binary_size_rel(obj, base) + extra_bytes);
 		}
 		goto pop_next;
 	    }
@@ -448,10 +419,10 @@ Uint size_shared(Eterm obj)
 	case TAG_PRIMARY_IMMED1:
 	    VERBOSE(DEBUG_NICKIE, ("I"));
 	pop_next:
-	    if (ESTACK_ISEMPTY(s)) {
+	    if (EQUEUE_ISEMPTY(s)) {
 		goto cleanup;
 	    }
-	    obj = ESTACK_POP(s);
+	    EQUEUE_GET(s, obj);
 	    break;
 	default:
 	    erl_exit(ERTS_ABORT_EXIT, "size_shared: bad tag for %#x\n", obj);
@@ -470,8 +441,8 @@ cleanup:
 	    Eterm head, tail;
 	    VERBOSE(DEBUG_NICKIE, ("L"));
 	    ptr = list_val_rel(obj, base);
-	    if (!INHEAP(myself, ptr)) {
-		goto pop_next;
+	    if (!COUNT_OFF_HEAP && !INHEAP(myself, ptr)) {
+		goto cleanup_next;
 	    }
 	    head = CAR(ptr);
 	    tail = CDR(ptr);
@@ -485,7 +456,7 @@ cleanup:
 		    CDR(ptr) = tail = (tail - TAG_PRIMARY_HEADER) | TAG_PRIMARY_BOXED;
 		} else {
 		    VERBOSE(DEBUG_NICKIE, ("/L"));
-		    ptr[1] = tail = (tail - TAG_PRIMARY_HEADER) | TAG_PRIMARY_LIST;
+		    CDR(ptr) = tail = (tail - TAG_PRIMARY_HEADER) | TAG_PRIMARY_LIST;
 		}
 	    } else if (primary_tag(head) == TAG_PRIMARY_HEADER) {
 		VERBOSE(DEBUG_NICKIE, ("/I"));
@@ -497,7 +468,7 @@ cleanup:
 	    }
 	    /* and its children too */
 	    if (!IS_CONST(head)) {
-		ESTACK_PUSH(s, head);
+		EQUEUE_PUT(s, head);
 	    }
 	    obj = tail;
 	    break;
@@ -506,8 +477,8 @@ cleanup:
 	    Eterm hdr;
 	    VERBOSE(DEBUG_NICKIE, ("B"));
 	    ptr = boxed_val_rel(obj, base);
-	    if (!INHEAP(myself, ptr)) {
-		goto pop_next;
+	    if (!COUNT_OFF_HEAP && !INHEAP(myself, ptr)) {
+		goto cleanup_next;
 	    }
 	    hdr = *ptr;
 	    /* if not already clean, clean it up */
@@ -516,7 +487,7 @@ cleanup:
 	    }
 	    else {
 		ASSERT(primary_tag(hdr) == BOXED_VISITED);
-		*ptr = hdr = hdr - BOXED_VISITED;
+		*ptr = hdr = (hdr - BOXED_VISITED) + TAG_PRIMARY_HEADER;
 	    }
 	    /* and its children too */
 	    switch (hdr & _TAG_HEADER_MASK) {
@@ -525,28 +496,26 @@ cleanup:
 		if (arity == 0) { /* Empty tuple -- unusual. */
 		    goto cleanup_next;
 		}
-		while (arity-- > 1) {
+		while (arity-- > 0) {
 		    obj = *++ptr;
 		    if (!IS_CONST(obj)) {
-			ESTACK_PUSH(s, obj);
+			EQUEUE_PUT(s, obj);
 		    }
 		}
-		obj = *++ptr;
-		break;
+		goto cleanup_next;
 	    }
 	    case FUN_SUBTAG: {
 		ErlFunThing* funp = (ErlFunThing *) ptr;
 		unsigned eterms = 1 /* creator */ + funp->num_free;
 		unsigned sz = thing_arityval(hdr);
 		ptr += 1 /* header */ + sz;
-		while (eterms-- > 1) {
+		while (eterms-- > 0) {
 		    obj = *ptr++;
 		    if (!IS_CONST(obj)) {
-			ESTACK_PUSH(s, obj);
+			EQUEUE_PUT(s, obj);
 		    }
 		}
-		obj = *ptr;
-		break;
+		goto cleanup_next;
 	    }
 	    default:
 		goto cleanup_next;
@@ -555,10 +524,10 @@ cleanup:
 	}
 	case TAG_PRIMARY_IMMED1:
 	cleanup_next:
-	    if (ESTACK_ISEMPTY(s)) {
+	    if (EQUEUE_ISEMPTY(s)) {
 		goto all_clean;
 	    }
-	    obj = ESTACK_POP(s);
+	    EQUEUE_GET(s, obj);
 	    break;
 	default:
 	    erl_exit(ERTS_ABORT_EXIT, "size_shared: bad tag for %#x\n", obj);
@@ -569,7 +538,7 @@ cleanup:
  all_clean:
     VERBOSE(DEBUG_NICKIE, ("\n"));
     /* Return the result */
-    DESTROY_ESTACK(s);
+    DESTROY_EQUEUE(s);
     DESTROY_BITSTORE(b);
     return sum;
 }
@@ -1183,7 +1152,7 @@ Uint copy_shared_calculate(Eterm obj, shcopy_info *info)
 		       (((*boxed_val(rterm2wterm(real_bin, base))) &
 			 (_TAG_HEADER_MASK - _BINARY_XXX_MASK - BOXED_VISITED_MASK))
 			== _TAG_HEADER_REFC_BIN));
-		hdr = *_unchecked_binary_val(rterm2wterm(real_bin, base));
+		hdr = *_unchecked_binary_val(rterm2wterm(real_bin, base)) & ~BOXED_VISITED_MASK;
 		if (thing_subtag(hdr) == HEAP_BINARY_SUBTAG) {
 		    sum += heap_bin_size(size+extra_bytes);
 		} else {
@@ -1347,7 +1316,7 @@ Uint copy_shared_perform(Eterm obj, Uint size, shcopy_info *info, Eterm** hpp, E
 #ifdef NICKIE_SHCOPY_DEBUG
 		    VERBOSE_DEBUG("[pid=%T] unmangling L/L %p\n", myself->id, ptr);
 #endif
-		    ptr[1] = tail = (tail - TAG_PRIMARY_HEADER) + TAG_PRIMARY_LIST;
+		    CDR(ptr) = tail = (tail - TAG_PRIMARY_HEADER) + TAG_PRIMARY_LIST;
 		}
 	    } else if (primary_tag(head) == TAG_PRIMARY_HEADER) {
 		VERBOSE(DEBUG_NICKIE, ("/I"));
@@ -1518,7 +1487,7 @@ Uint copy_shared_perform(Eterm obj, Uint size, shcopy_info *info, Eterm** hpp, E
 		    res->is_writable = 0;
 		    res->orig = make_binary(hp);
 		}
-		if (thing_subtag(*ptr) == HEAP_BINARY_SUBTAG) {
+		if (thing_subtag(*ptr & ~BOXED_VISITED_MASK) == HEAP_BINARY_SUBTAG) {
 		    ErlHeapBin* from = (ErlHeapBin *) ptr;
 		    ErlHeapBin* to = (ErlHeapBin *) hp;
 		    hp += heap_bin_size(real_size);
@@ -1528,7 +1497,7 @@ Uint copy_shared_perform(Eterm obj, Uint size, shcopy_info *info, Eterm** hpp, E
 		} else {
 		    ProcBin* from = (ProcBin *) ptr;
 		    ProcBin* to = (ProcBin *) hp;
-		    ASSERT(thing_subtag(*ptr) == REFC_BINARY_SUBTAG);
+		    ASSERT(thing_subtag(*ptr & ~BOXED_VISITED_MASK) == REFC_BINARY_SUBTAG);
 		    if (from->flags) {
 			erts_emasculate_writable_binary(from);
 		    }
@@ -1599,12 +1568,11 @@ Uint copy_shared_perform(Eterm obj, Uint size, shcopy_info *info, Eterm** hpp, E
 			    remaining = 1 + funp->num_free;
 			    break;
 			}
-			case SUB_BINARY_SUBTAG: {
-			    ErlSubBin* sb = (ErlSubBin *) hscan;
-			    ASSERT(sb->bitoffs + sb->bitsize > 0);
+			case SUB_BINARY_SUBTAG:
+			    ASSERT(((ErlSubBin *) hscan)->bitoffs +
+				   ((ErlSubBin *) hscan)->bitsize > 0);
 			    hscan += ERL_SUB_BIN_SIZE;
 			    break;
-			}
 			default:
 			    hscan += 1 + thing_arityval(*hscan);
 			    break;
@@ -1661,6 +1629,8 @@ all_clean:
 
 #ifdef DEBUG
     if (eq(saved_obj, result) == 0) {
+	erts_fprintf(stderr, "original = %T\n", saved_obj);
+	erts_fprintf(stderr, "copy = %T\n", result);
 	erl_exit(ERTS_ABORT_EXIT, "copy (shared) not equal to source\n");
     }
 #endif

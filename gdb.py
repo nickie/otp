@@ -17,7 +17,7 @@ for line in output.splitlines():
     if execf.find("beam") == -1:
 	continue
     print "Could debug pid {0}: {1} {2}".format(pid, execf, argsf)
-    if pid == None or argsf.find("-sname test_server") != -1:
+    if found == None or argsf.find("-sname test_server") != -1:
         found = {'pid': pid, 'execf': execf}
 if found != None:
     print "Choosing pid {0}".format(found['pid'])

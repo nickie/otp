@@ -1,0 +1,78 @@
+erts/emulator/beam/erl_db_util.h:
+  db_copy_key   MACRO
+
+erts/emulator/beam/bif.c:
+  erts_queue_monitor_message
+
+erts/emulator/beam/dist.c:
+  erts_net_message
+  send_nodes_mon_msg
+
+erts/emulator/beam/erl_bif_info.c:
+  process_info_aux
+
+erts/emulator/beam/erl_bif_timer.c:
+  setup_bif_timer
+
+erts/emulator/beam/erl_db.c:
+  set_heir
+
+erts/emulator/beam/erl_db_tree.c:
+  db_select_continue_tree
+  db_select_tree
+  db_select_count_continue_tree
+  db_select_count_tree
+  db_select_chunk_tree
+  db_select_delete_continue_tree
+  db_select_delete_tree
+
+erts/emulator/beam/erl_db_util.c:
+  erts_match_set_compile
+  copy_object_rel
+  db_prog_match
+  copy_to_comp
+  db_store_term
+  db_finalize_resize
+  db_copy_from_comp
+  db_copy_element_from_ets
+  dmc_one_term
+  my_copy_struct    ?? recursive, something special, why?
+
+erts/emulator/beam/erl_message.c:
+  ?? various occurrences in debugging #ifdefs and tracing ifs
+  erts_msg_distext2heap
+  erts_move_msg_attached_data_to_heap
+  erts_deliver_exit_message
+
+erts/emulator/beam/erl_nif.c:
+  enif_make_copy
+
+erts/emulator/beam/erl_node_tables.c:
+  insert_node_referrer
+  reference_table_term
+
+erts/emulator/beam/erl_process.c:
+  send_exit_message
+  send_exit_signal
+
+erts/emulator/beam/erl_trace.c:
+  do_send_to_port
+  profile_send
+  trace_send
+  trace_receive
+  seq_trace_output_generic
+  erts_trace_return_to
+  erts_trace_return
+  erts_trace_exception
+  erts_call_trace
+  trace_proc
+  trace_proc_spawn
+
+erts/emulator/beam/io.c:
+  deliver_result
+
+erts/emulator/beam/utils.c:
+  do_send_to_logger
+
+erts/emulator/hipe/hipe_bif0.c:
+  const_term_alloc
