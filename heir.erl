@@ -1,7 +1,8 @@
 -module(heir).
 -export([heir/0, give_away/0]).
 
--define(line,).
+-define(line, io:format(lists:concat([integer_to_list(?LINE),":\n"]), []),).
+%-define(line,).
 
 heir() ->
     erts_debug:set_internal_state(available_internal_state, true),
@@ -14,59 +15,71 @@ heir() ->
 heir_do(Opts) ->
     ?line EtsMem = etsmem(),
     Master = self(),
+    io:format("the master process is ~p\n", [Master]),
 
     %% Different types of heir data and link/monitor relations
-    TestFun = fun(Arg) -> {EtsMem,Arg} end,
-    Combos = [{Data,Mode} || Data<-[foo_data, <<"binary">>, 
-				    lists:seq(1,10), {17,TestFun,self()},
-				    "The busy heir"],
-			     Mode<-[none,link,monitor]],
-    ?line lists:foreach(fun({Data,Mode})-> heir_1(Data,Mode,Opts) end,
-			Combos),    			
-			 
-    %% No heir
-    {Founder1,MrefF1} = spawn_monitor(fun()->heir_founder(Master,foo_data,Opts)end),
-    Founder1 ! {go, none},
-    ?line {"No heir",Founder1} = receive_any(),
-    ?line {'DOWN', MrefF1, process, Founder1, normal} = receive_any(),
-    ?line undefined = ets:info(foo),
+    %% TestFun = fun(Arg) -> {EtsMem,Arg} end,
+    %% Combos = [{Data,Mode} || Data<-[foo_data, <<"binary">>,
+    %%     			    lists:seq(1,10), {17,TestFun,self()},
+    %%     			    "The busy heir"],
+    %%     		     Mode<-[none,link,monitor]],
+    %% ?line lists:foreach(fun({Data,Mode})-> heir_1(Data,Mode,Opts) end,
+    %% 			Combos),
 
-    %% An already dead heir
-    {Heir2,MrefH2} = spawn_monitor(fun()->die end),
-    ?line {'DOWN', MrefH2, process, Heir2, normal} = receive_any(),
-    {Founder2,MrefF2} = spawn_monitor(fun()->heir_founder(Master,foo_data,Opts)end),
-    Founder2 ! {go, Heir2},
-    ?line {"No heir",Founder2} = receive_any(),
-    ?line {'DOWN', MrefF2, process, Founder2, normal} = receive_any(),
-    ?line undefined = ets:info(foo),
+    %% %% No heir
+    %% {Founder1,MrefF1} = spawn_monitor(fun()->heir_founder(Master,foo_data,Opts)end),
+    %% Founder1 ! {go, none},
+    %% ?line {"No heir",Founder1} = receive_any(),
+    %% ?line {'DOWN', MrefF1, process, Founder1, normal} = receive_any(),
+    %% ?line undefined = ets:info(foo),
+
+    %% %% An already dead heir
+    %% {Heir2,MrefH2} = spawn_monitor(fun()->die end),
+    %% ?line {'DOWN', MrefH2, process, Heir2, normal} = receive_any(),
+    %% {Founder2,MrefF2} = spawn_monitor(fun()->heir_founder(Master,foo_data,Opts)end),
+    %% Founder2 ! {go, Heir2},
+    %% ?line {"No heir",Founder2} = receive_any(),
+    %% ?line {'DOWN', MrefF2, process, Founder2, normal} = receive_any(),
+    %% ?line undefined = ets:info(foo),
 
     %% When heir dies before founder
-    {Founder3,MrefF3} = spawn_monitor(fun()->heir_founder(Master,"The dying heir",Opts)end),
-    {Heir3,MrefH3} = spawn_monitor(fun()->heir_heir(Founder3)end),
-    Founder3 ! {go, Heir3},
-    ?line {'DOWN', MrefH3, process, Heir3, normal} = receive_any(),
-    Founder3 ! die_please,
-    ?line {'DOWN', MrefF3, process, Founder3, normal} = receive_any(),
-    ?line undefined = ets:info(foo),
+    %% {Founder3,MrefF3} = spawn_monitor(fun()->heir_founder(Master,"The dying heir",Opts)end),
+    %% {Heir3,MrefH3} = spawn_monitor(fun()->heir_heir(Founder3)end),
+    %% Founder3 ! {go, Heir3},
+    %% ?line {'DOWN', MrefH3, process, Heir3, normal} = receive_any(),
+    %% Founder3 ! die_please,
+    %% ?line {'DOWN', MrefF3, process, Founder3, normal} = receive_any(),
+    %% ?line undefined = ets:info(foo),
 
     %% When heir dies and pid reused before founder dies
-    NextPidIx = erts_debug:get_internal_state(next_pid),
-    {Founder4,MrefF4} = spawn_monitor(fun()->heir_founder(Master,"The dying heir",Opts)end),
-    {Heir4,MrefH4} = spawn_monitor(fun()->heir_heir(Founder4)end),
-    Founder4 ! {go, Heir4},
-    ?line {'DOWN', MrefH4, process, Heir4, normal} = receive_any(),
-    erts_debug:set_internal_state(next_pid, NextPidIx),
-    {Heir4,MrefH4_B} = spawn_monitor_with_pid(Heir4, 
-					      fun()-> ?line die_please = receive_any() end),
-    Founder4 ! die_please,
-    ?line {'DOWN', MrefF4, process, Founder4, normal} = receive_any(),
-    Heir4 ! die_please,
-    ?line {'DOWN', MrefH4_B, process, Heir4, normal} = receive_any(),
-    ?line undefined = ets:info(foo), 
+    %% NextPidIx = erts_debug:get_internal_state(next_pid),
+    %% {Founder4,MrefF4} = spawn_monitor(fun()->heir_founder(Master,"The dying heir",Opts)end),
+    %% {Heir4,MrefH4} = spawn_monitor(fun()->heir_heir(Founder4)end),
+    %% Founder4 ! {go, Heir4},
+    %% ?line {'DOWN', MrefH4, process, Heir4, normal} = receive_any(),
+    %% erts_debug:set_internal_state(next_pid, NextPidIx),
+    %% {Heir4,MrefH4_B} = spawn_monitor_with_pid(Heir4,
+    %%                                          fun()-> ?line die_please = receive_any() end),
+    %% Founder4 ! die_please,
+    %% ?line {'DOWN', MrefF4, process, Founder4, normal} = receive_any(),
+    %% Heir4 ! die_please,
+    %% ?line {'DOWN', MrefH4_B, process, Heir4, normal} = receive_any(),
+    %% ?line undefined = ets:info(foo),
+
+    HeirData = foo_data,
+    Mode = none,
+
+    io:format("test with heir_data = ~p\n", [HeirData]),
+    ?line Founder = spawn_link(fun() -> heir_founder(Master,HeirData,Opts) end),
+    io:format("founder spawned = ~p\n", [Founder]),
+    ?line {Heir,Mref} = spawn_monitor(fun() -> heir_heir(Founder,Mode) end),
+    io:format("heir spawned = ~p\n", [{Heir,Mref}]),
+    ?line Founder ! {go, Heir},
+    ?line {'DOWN', Mref, process, Heir, normal} = receive_any(),
 
     ?line verify_etsmem(EtsMem).
 
-heir_founder(Master, HeirData, Opts) ->    
+heir_founder(Master, HeirData, Opts) ->
     ?line {go,Heir} = receive_any(),
     HeirTpl = case Heir of
 		  none -> {heir,none};
@@ -81,10 +94,11 @@ heir_founder(Master, HeirData, Opts) ->
 	      none ->
 		  ?line true = (Heir =:= none) orelse (not is_process_alive(Heir)),
 		  Master ! {"No heir",self()};
-	      
-	      Heir -> 
-		  ?line true = is_process_alive(Heir),
-		  Heir ! {table,T,HeirData},
+
+	      Heir2 ->
+                  Heir = Heir2,
+		  ?line true = is_process_alive(Heir2),
+		  Heir2 ! {table,T,HeirData},
 		  die_please = receive_any()
 	  end.
 
@@ -101,7 +115,7 @@ heir_heir(Founder, Mode) ->
 
     ?line Mref = case Mode of
 		     link -> process_flag(trap_exit, true),
-			     link(Founder);			      
+			     link(Founder);
 		     monitor -> erlang:monitor(process,Founder);
 		     none -> ok
 		 end,
@@ -119,10 +133,10 @@ heir_heir(Founder, Mode) ->
     ?line true = ets:insert(T,{key,2}),
     ?line [{key,2}] = ets:lookup(T,key),
     ?line case Mode of % Verify that EXIT or DOWN comes after ETS-TRANSFER
-	      link -> 
+	      link ->
 		  {'EXIT',Founder,normal} = receive_any(),
 		  process_flag(trap_exit, false);
-	      monitor -> 
+	      monitor ->
 		  {'DOWN', Mref, process, Founder, normal} = receive_any();
 	      none -> ok
 	  end.
