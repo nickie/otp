@@ -98,11 +98,11 @@ erts_debug_copy_shared_1(BIF_ALIST_1)
     DECLARE_INFO(info);
     extern int flag_copy_shared;
 
-    size = copy_shared_calculate(term, &info);
+    size = copy_shared_calculate(term, &info, 0);
     if (size > 0) {
       hp = HAlloc(p, size);
     }
-    copy = copy_shared_perform(term, size, &info, &hp, &p->off_heap);
+    copy = copy_shared_perform(term, size, &info, &hp, &p->off_heap, 0);
     DESTROY_INFO(info);
     flag_copy_shared = 1;
     BIF_RET(copy);

@@ -1794,7 +1794,7 @@ BIF_RETTYPE ets_give_away_3(BIF_ALIST_3)
     db_unlock(tb,LCK_WRITE);
     erts_send_message(BIF_P, to_proc, &to_locks,
 		      TUPLE4(buf, am_ETS_TRANSFER, tb->common.id, from_pid, BIF_ARG_3), 
-		      0);
+		      ERTS_SND_FLG_SHCOPY_TMP_BUF);
     erts_smp_proc_unlock(to_proc, to_locks);
     UnUseTmpHeap(5,BIF_P);
     BIF_RET(am_true);
@@ -3124,7 +3124,7 @@ retry:
     }
     erts_send_message(p, to_proc, &to_locks,
 		      TUPLE4(buf, am_ETS_TRANSFER, tb->common.id, p->id, heir_data), 
-		      0);
+		      ERTS_SND_FLG_SHCOPY_TMP_BUF);
     erts_smp_proc_unlock(to_proc, to_locks);
     return !0;
 }

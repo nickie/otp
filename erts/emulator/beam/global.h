@@ -1005,6 +1005,10 @@ extern int flag_copy_shared;
     erts_fprintf(stderr, __VA_ARGS__);	\
   } while(0)
 
+#define ERTS_SHCOPY_FLG_MASK	(((unsigned) 3) << 0)
+#define ERTS_SHCOPY_FLG_NONE	(((unsigned) 1) << 0)
+#define ERTS_SHCOPY_FLG_TMP_BUF	(((unsigned) 1) << 1)
+
 /* The persistent state while the sharing-preserving copier works */
 
 typedef struct shcopy_info {
@@ -1038,8 +1042,8 @@ do {									\
 /* copy.c */
 void init_copy(void);
 Eterm copy_object(Eterm, Process*);
-Uint copy_shared_calculate(Eterm, shcopy_info*);
-Eterm copy_shared_perform(Eterm, Uint, shcopy_info*, Eterm**, ErlOffHeap*);
+Uint copy_shared_calculate(Eterm, shcopy_info*, unsigned);
+Eterm copy_shared_perform(Eterm, Uint, shcopy_info*, Eterm**, ErlOffHeap*, unsigned);
 
 #if HALFWORD_HEAP
 Uint size_object_rel(Eterm, Eterm*);

@@ -129,9 +129,15 @@ show_spawn_destroys_sharing_2() ->
 
 show_printing_may_be_bad(N) when N =< 40 ->
     L = mklist(N),
+    T = now(),
     io:format("size is ~B: ", [erts_debug:size(L)]),
-    io:format("~80P~n", [L, 4]),
-    show_printing_may_be_bad(N+5).
+    io:format("~80P, ", [L, 4]),
+    D = timer:now_diff(now(), T),
+    io:format("time elapsed: ~.3f sec.~n", [D/1000000]),
+    show_printing_may_be_bad(N+5);
+show_printing_may_be_bad(_) ->
+    ok.
+
 show_printing_may_be_bad() ->
     show_printing_may_be_bad(0).
 

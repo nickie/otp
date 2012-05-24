@@ -7526,6 +7526,7 @@ erl_create_process(Process* parent, /* Parent of process (default group leader).
     erts_aint32_t state = 0;
     erts_aint32_t prio = (erts_aint32_t) PRIORITY_NORMAL;
 #ifdef NICKIE_SHCOPY_SEND
+    unsigned shflags = 0;	/* could be taken from so->flags, if necessary */
     DECLARE_INFO(info);
 #endif
 
@@ -7585,7 +7586,7 @@ erl_create_process(Process* parent, /* Parent of process (default group leader).
 #ifndef HYBRID
     BM_SWAP_TIMER(system,size);
 #ifdef NICKIE_SHCOPY_SPAWN
-    arg_size = copy_shared_calculate(args, &info);
+    arg_size = copy_shared_calculate(args, &info, shflags);
 #else
     arg_size = size_object(args);
 #endif
@@ -7674,7 +7675,7 @@ erl_create_process(Process* parent, /* Parent of process (default group leader).
 #else
     BM_SWAP_TIMER(system,copy);
 #ifdef NICKIE_SHCOPY_SPAWN
-    p->arg_reg[2] = copy_shared_perform(args, arg_size, &info, &p->htop, &p->off_heap);
+    p->arg_reg[2] = copy_shared_perform(args, arg_size, &info, &p->htop, &p->off_heap, shflags);
     DESTROY_INFO(info);
 #else
     p->arg_reg[2] = copy_struct(args, arg_size, &p->htop, &p->off_heap);

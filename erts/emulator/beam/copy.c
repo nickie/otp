@@ -256,10 +256,14 @@ do {									    \
  *  Is an object in the local heap of a process?
  */
 
-#define INHEAP(p, ptr) (0 ||                                \
-  (HEAP_START(p) <= ptr && ptr < HEAP_END(p)) ||            \
-  (OLD_HEAP(p) && OLD_HEAP(p) <= ptr && ptr < OLD_HEND(p))  \
-)
+#define INHEAP_SIMPLE(p, ptr) (					\
+    (HEAP_START(p) <= ptr && ptr < HEAP_END(p)) ||		\
+    (OLD_HEAP(p) && OLD_HEAP(p) <= ptr && ptr < OLD_HEND(p))	\
+								)
+#define INHEAP(p, ptr) (					\
+    INHEAP_SIMPLE(p, ptr) ||					\
+    (force_local ? (force_local = 0, 1) : 0)			\
+  )
 #define COUNT_OFF_HEAP 0
 
 
@@ -295,7 +299,7 @@ Uint size_shared(Eterm obj)
 	    VERBOSE(DEBUG_NICKIE, ("L"));
 	    ptr = list_val_rel(obj, base);
 	    /* we're not counting anything that's outside our heap !!! */
-	    if (!COUNT_OFF_HEAP && !INHEAP(myself, ptr)) {
+	    if (!COUNT_OFF_HEAP && !INHEAP_SIMPLE(myself, ptr)) {
 		goto pop_next;
 	    }
 	    head = CAR(ptr);
@@ -337,7 +341,7 @@ Uint size_shared(Eterm obj)
 	    VERBOSE(DEBUG_NICKIE, ("B"));
 	    ptr = boxed_val_rel(obj, base);
 	    /* we're not counting anything that's outside our heap !!! */
-	    if (!COUNT_OFF_HEAP && !INHEAP(myself, ptr)) {
+	    if (!COUNT_OFF_HEAP && !INHEAP_SIMPLE(myself, ptr)) {
 		goto pop_next;
 	    }
 	    hdr = *ptr;
@@ -441,7 +445,7 @@ cleanup:
 	    Eterm head, tail;
 	    VERBOSE(DEBUG_NICKIE, ("L"));
 	    ptr = list_val_rel(obj, base);
-	    if (!COUNT_OFF_HEAP && !INHEAP(myself, ptr)) {
+	    if (!COUNT_OFF_HEAP && !INHEAP_SIMPLE(myself, ptr)) {
 		goto cleanup_next;
 	    }
 	    head = CAR(ptr);
@@ -477,7 +481,7 @@ cleanup:
 	    Eterm hdr;
 	    VERBOSE(DEBUG_NICKIE, ("B"));
 	    ptr = boxed_val_rel(obj, base);
-	    if (!COUNT_OFF_HEAP && !INHEAP(myself, ptr)) {
+	    if (!COUNT_OFF_HEAP && !INHEAP_SIMPLE(myself, ptr)) {
 		goto cleanup_next;
 	    }
 	    hdr = *ptr;
@@ -945,13 +949,14 @@ do {									\
  *  First half: count size and calculate sharing.
  *  NOTE: We do not support HALF_WORD (yet?).
  */
-Uint copy_shared_calculate(Eterm obj, shcopy_info *info)
+Uint copy_shared_calculate(Eterm obj, shcopy_info *info, unsigned flags)
 {
     Uint sum;
     Uint e;
     unsigned sz;
     Eterm* ptr;
     Process* myself;
+    int force_local = flags & ERTS_SHCOPY_FLG_TMP_BUF;
 
     DECLARE_EQUEUE_INIT_INFO(s, info);
     DECLARE_BITSTORE_INIT_INFO(b, info);
@@ -968,7 +973,7 @@ Uint copy_shared_calculate(Eterm obj, shcopy_info *info)
 	return 0;
 
     myself = erts_get_current_process();
-    if (myself == NULL || !flag_copy_shared)
+    if (myself == NULL || !flag_copy_shared || (flags & ERTS_SHCOPY_FLG_NONE))
 	return size_object(obj);
 
 #ifdef NICKIE_SHCOPY_DEBUG
@@ -1205,7 +1210,7 @@ Uint copy_shared_calculate(Eterm obj, shcopy_info *info)
  *  Second half: copy and restore the object.
  *  NOTE: We do not support HALF_WORD (yet?).
  */
-Uint copy_shared_perform(Eterm obj, Uint size, shcopy_info *info, Eterm** hpp, ErlOffHeap* off_heap)
+Uint copy_shared_perform(Eterm obj, Uint size, shcopy_info *info, Eterm** hpp, ErlOffHeap* off_heap, unsigned flags)
 {
     Uint e;
     unsigned sz;
@@ -1216,6 +1221,7 @@ Uint copy_shared_perform(Eterm obj, Uint size, shcopy_info *info, Eterm** hpp, E
     Eterm* resp;
     unsigned remaining;
     Process* myself;
+    int force_local = flags & ERTS_SHCOPY_FLG_TMP_BUF;
 #if defined(DEBUG) || defined(NICKIE_SHCOPY_DEBUG)
     Eterm saved_obj = obj;
 #endif
@@ -1235,7 +1241,7 @@ Uint copy_shared_perform(Eterm obj, Uint size, shcopy_info *info, Eterm** hpp, E
 	return obj;
 
     myself = erts_get_current_process();
-    if (myself == NULL || !flag_copy_shared)
+    if (myself == NULL || !flag_copy_shared || (flags & ERTS_SHCOPY_FLG_NONE))
 	return copy_struct(obj, size, hpp, off_heap);
 
 #ifdef NICKIE_SHCOPY_DEBUG

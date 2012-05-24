@@ -938,7 +938,7 @@ erts_send_message(Process* sender,
 
  #ifdef USE_VM_PROBES
     *sender_name = *receiver_name = '\0';
-   if (DTRACE_ENABLED(message_send)) {
+    if (DTRACE_ENABLED(message_send)) {
 	erts_snprintf(sender_name, sizeof(sender_name), "%T", sender->id);
 	erts_snprintf(receiver_name, sizeof(receiver_name), "%T", receiver->id);
     }
@@ -1122,11 +1122,12 @@ erts_send_message(Process* sender,
         Eterm *hp;
 	erts_aint32_t state;
 #ifdef NICKIE_SHCOPY_SEND
+	unsigned shflags = (flags & ERTS_SND_FLG_SHCOPY_MASK) >> ERTS_SND_FLG_SHCOPY_SHIFT;
 	DECLARE_INFO(info);
 #endif
 	BM_SWAP_TIMER(send,size);
 #ifdef NICKIE_SHCOPY_SEND
-	msize = copy_shared_calculate(message, &info);
+	msize = copy_shared_calculate(message, &info, shflags);
 #else
 	msize = size_object(message);
 #endif
@@ -1139,7 +1140,7 @@ erts_send_message(Process* sender,
 					   &state);
 	BM_SWAP_TIMER(send,copy);
 #ifdef NICKIE_SHCOPY_SEND
-	message = copy_shared_perform(message, msize, &info, &hp, ohp);
+	message = copy_shared_perform(message, msize, &info, &hp, ohp, shflags);
 	DESTROY_INFO(info);
 #else
 	message = copy_struct(message, msize, &hp, ohp);
@@ -1164,11 +1165,12 @@ erts_send_message(Process* sender,
 	ErlMessage* mp = message_alloc();
 	Eterm *hp;
 #ifdef NICKIE_SHCOPY_SEND
+	unsigned shflags = (flags & ERTS_SND_FLG_SHCOPY_MASK) >> ERTS_SND_FLG_SHCOPY_SHIFT;
 	DECLARE_INFO(info);
 #endif
 	BM_SWAP_TIMER(send,size);
 #ifdef NICKIE_SHCOPY_SEND
-	msize = copy_shared_calculate(message, &info);
+	msize = copy_shared_calculate(message, &info, shflags);
 #else
 	msize = size_object(message);
 #endif
@@ -1183,7 +1185,7 @@ erts_send_message(Process* sender,
 	receiver->htop = hp + msize;
 	BM_SWAP_TIMER(send,copy);
 #ifdef NICKIE_SHCOPY_SEND
-	message = copy_shared_perform(message, msize, &info, &hp, &receiver->off_heap);
+	message = copy_shared_perform(message, msize, &info, &hp, &receiver->off_heap, shflags);
 	DESTROY_INFO(info);
 #else
 	message = copy_struct(message, msize, &hp, &receiver->off_heap);
