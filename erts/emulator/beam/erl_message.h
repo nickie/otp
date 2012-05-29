@@ -207,7 +207,7 @@ do {									\
     }									\
 } while (0)
 
-#define ERTS_SND_FLG_NO_SEQ_TRACE	(((unsigned) 1) << 0)
+#define ERTS_SND_FLG_NO_SEQ_TRACE		(((unsigned) 1) << 0)
 
 #define ERTS_SND_FLG_SHCOPY_SHIFT	1
 #define ERTS_SND_FLG_SHCOPY_MASK	(ERTS_SHCOPY_FLG_MASK    << ERTS_SND_FLG_SHCOPY_SHIFT)

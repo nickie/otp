@@ -93,7 +93,7 @@
 #include "erl_lock_count.h"
 #endif
 
-#define MAX_BIT	      (1 << PRIORITY_MAX)
+#define MAX_BIT       (1 << PRIORITY_MAX)
 #define HIGH_BIT      (1 << PRIORITY_HIGH)
 #define NORMAL_BIT    (1 << PRIORITY_NORMAL)
 #define LOW_BIT       (1 << PRIORITY_LOW)
@@ -317,7 +317,7 @@ static ErtsAuxWorkData *aux_thread_aux_work_data;
 #define ERTS_SCHDLR_SSPND_CHNG_SET(VAL, OLD_VAL)			\
 do {									\
     erts_aint32_t old_val__;						\
-    old_val__ = erts_smp_atomic32_xchg_nob(&schdlr_sspnd.changing,	\
+    old_val__ = erts_smp_atomic32_xchg_nob(&schdlr_sspnd.changing,     	\
 					   (VAL));			\
     ASSERT(old_val__ == (OLD_VAL));					\
 } while (0)
@@ -3960,7 +3960,7 @@ if (pix == 2) erts_fprintf(stderr, "%d >--> %d\n", from_qix, to_qix);
 			    tix++;
 			    fix2--;
 #ifdef DBG_PRINT
-if (pix == 2) erts_fprintf(stderr, "%d	--> %d\n", from_qix, to_qix);
+if (pix == 2) erts_fprintf(stderr, "%d  --> %d\n", from_qix, to_qix);
 #endif
 			}
 		    }
@@ -5094,10 +5094,10 @@ suspend_scheduler(ErtsSchedulerData *esdp)
     /*
      * Schedulers may be suspended in two different ways:
      * - A scheduler may be suspended since it is not online.
-     *	 All schedulers with scheduler ids greater than
-     *	 schdlr_sspnd.online are suspended.
+     *   All schedulers with scheduler ids greater than
+     *   schdlr_sspnd.online are suspended.
      * - Multi scheduling is blocked. All schedulers except the
-     *	 scheduler with scheduler id 1 are suspended.
+     *   scheduler with scheduler id 1 are suspended.
      *
      * Regardless of why a scheduler is suspended, it ends up here.
      */
@@ -5111,7 +5111,7 @@ suspend_scheduler(ErtsSchedulerData *esdp)
     erts_sched_check_cpu_bind_prep_suspend(esdp);
 
     if (erts_system_profile_flags.scheduler)
-	profile_scheduler(make_small(esdp->no), am_inactive);
+    	profile_scheduler(make_small(esdp->no), am_inactive);
 
     sched_wall_time_change(esdp, 0);
 
@@ -5248,7 +5248,7 @@ suspend_scheduler(ErtsSchedulerData *esdp)
     ASSERT(curr_online);
 
     if (erts_system_profile_flags.scheduler)
-	profile_scheduler(make_small(esdp->no), am_active);
+    	profile_scheduler(make_small(esdp->no), am_active);
 
     if (!thr_prgr_active) {
 	erts_thr_progress_active(esdp, thr_prgr_active = 1);
@@ -6671,10 +6671,10 @@ Process *schedule(Process *p, int calls)
 
 #ifdef USE_VM_PROBES
     if (p != NULL && DTRACE_ENABLED(process_unscheduled)) {
-	DTRACE_CHARBUF(process_buf, DTRACE_TERM_BUF_SIZE);
+        DTRACE_CHARBUF(process_buf, DTRACE_TERM_BUF_SIZE);
 
-	dtrace_proc_str(p, process_buf);
-	DTRACE1(process_unscheduled, process_buf);
+        dtrace_proc_str(p, process_buf);
+        DTRACE1(process_unscheduled, process_buf);
     }
 #endif
 
@@ -7080,7 +7080,7 @@ Process *schedule(Process *p, int calls)
 	/* Never run a suspended process */
 	ASSERT(!(ERTS_PSFLG_SUSPENDED & erts_smp_atomic32_read_nob(&p->state)));
 
-	ACTIVATE(p);
+        ACTIVATE(p);
 	reds = context_reds;
 
 	if (IS_TRACED(p)) {
@@ -7646,9 +7646,9 @@ erl_create_process(Process* parent, /* Parent of process (default group leader).
     p->heap_sz = sz;
     p->catches = 0;
 
-    p->bin_vheap_sz	= p->min_vheap_size;
+    p->bin_vheap_sz     = p->min_vheap_size;
     p->bin_old_vheap_sz = p->min_vheap_size;
-    p->bin_old_vheap	= 0;
+    p->bin_old_vheap    = 0;
     p->bin_vheap_mature = 0;
 
     /* No need to initialize p->fcalls. */
@@ -7670,7 +7670,7 @@ erl_create_process(Process* parent, /* Parent of process (default group leader).
 #ifdef INCREMENTAL
     p->active = 0;
     if (ptr_val(args) >= inc_fromspc && ptr_val(args) < inc_fromend)
-	INC_ACTIVATE(p);
+        INC_ACTIVATE(p);
 #endif
 #else
     BM_SWAP_TIMER(system,copy);
@@ -7780,7 +7780,7 @@ erl_create_process(Process* parent, /* Parent of process (default group leader).
 	}
 
 #ifdef DEBUG
-	ret = erts_add_link(&(parent->nlinks),	LINK_PID, p->id);
+	ret = erts_add_link(&(parent->nlinks),  LINK_PID, p->id);
 	ASSERT(ret == 0);
 	ret = erts_add_link(&(p->nlinks), LINK_PID, parent->id);
 	ASSERT(ret == 0);
@@ -7792,9 +7792,9 @@ erl_create_process(Process* parent, /* Parent of process (default group leader).
 	if (IS_TRACED(parent)) {
 	    if (parent->trace_flags & (F_TRACE_SOL|F_TRACE_SOL1))  {
 		p->trace_flags |= (parent->trace_flags & TRACEE_FLAGS);
-		p->tracer_proc = parent->tracer_proc;	 /* maybe steal */
+		p->tracer_proc = parent->tracer_proc;    /* maybe steal */
 
-		if (parent->trace_flags & F_TRACE_SOL1)	 { /* maybe override */
+		if (parent->trace_flags & F_TRACE_SOL1)  { /* maybe override */
 		    p ->trace_flags &= ~(F_TRACE_SOL1 | F_TRACE_SOL);
 		    parent->trace_flags &= ~(F_TRACE_SOL1 | F_TRACE_SOL);
 		}
@@ -7849,11 +7849,11 @@ erl_create_process(Process* parent, /* Parent of process (default group leader).
 
 #ifdef USE_VM_PROBES
     if (DTRACE_ENABLED(process_spawn)) {
-	DTRACE_CHARBUF(process_name, DTRACE_TERM_BUF_SIZE);
-	DTRACE_CHARBUF(mfa, DTRACE_TERM_BUF_SIZE);
+        DTRACE_CHARBUF(process_name, DTRACE_TERM_BUF_SIZE);
+        DTRACE_CHARBUF(mfa, DTRACE_TERM_BUF_SIZE);
 
-	dtrace_fun_decode(p, mod, func, arity, process_name, mfa);
-	DTRACE2(process_spawn, process_name, mfa);
+        dtrace_fun_decode(p, mod, func, arity, process_name, mfa);
+        DTRACE2(process_spawn, process_name, mfa);
     }
 #endif
 
@@ -7916,7 +7916,7 @@ void erts_init_empty_process(Process *p)
     p->mbuf_sz = 0;
     p->psd = NULL;
     p->monitors = NULL;
-    p->nlinks = NULL;	      /* List of links */
+    p->nlinks = NULL;         /* List of links */
     p->nodes_monitors = NULL;
     p->suspend_monitors = NULL;
     p->msg.first = NULL;
@@ -8125,7 +8125,7 @@ delete_process(Process* p)
 
 #ifdef DEBUG
 	sys_memset(p->old_heap, DEBUG_BAD_BYTE,
-		   (p->old_hend-p->old_heap)*sizeof(Eterm));
+                   (p->old_hend-p->old_heap)*sizeof(Eterm));
 #endif
 	ERTS_HEAP_FREE(ERTS_ALC_T_OLD_HEAP,
 		       p->old_heap,
@@ -8170,16 +8170,16 @@ delete_process(Process* p)
 
 #ifdef HYBRID
     erts_active_procs[p->active_index] =
-	erts_active_procs[--erts_num_active_procs];
+        erts_active_procs[--erts_num_active_procs];
     erts_active_procs[p->active_index]->active_index = p->active_index;
 #ifdef INCREMENTAL
     if (INC_IS_ACTIVE(p))
-	 INC_DEACTIVATE(p);
+         INC_DEACTIVATE(p);
 #endif
 
     if (p->rrma != NULL) {
-	erts_free(ERTS_ALC_T_ROOTSET,p->rrma);
-	erts_free(ERTS_ALC_T_ROOTSET,p->rrsrc);
+        erts_free(ERTS_ALC_T_ROOTSET,p->rrma);
+        erts_free(ERTS_ALC_T_ROOTSET,p->rrsrc);
     }
 #endif
 
@@ -8457,14 +8457,14 @@ send_exit_signal(Process *c_p,		/* current process if and only
 
 #ifdef USE_VM_PROBES
     if(DTRACE_ENABLED(process_exit_signal) && is_pid(from)) {
-	DTRACE_CHARBUF(sender_str, DTRACE_TERM_BUF_SIZE);
-	DTRACE_CHARBUF(receiver_str, DTRACE_TERM_BUF_SIZE);
-	DTRACE_CHARBUF(reason_buf, DTRACE_TERM_BUF_SIZE);
+        DTRACE_CHARBUF(sender_str, DTRACE_TERM_BUF_SIZE);
+        DTRACE_CHARBUF(receiver_str, DTRACE_TERM_BUF_SIZE);
+        DTRACE_CHARBUF(reason_buf, DTRACE_TERM_BUF_SIZE);
 
-	dtrace_pid_str(from, sender_str);
-	dtrace_proc_str(rp, receiver_str);
-	erts_snprintf(reason_buf, sizeof(reason_buf) - 1, "%T", reason);
-	DTRACE3(process_exit_signal, sender_str, receiver_str, reason_buf);
+        dtrace_pid_str(from, sender_str);
+        dtrace_proc_str(rp, receiver_str);
+        erts_snprintf(reason_buf, sizeof(reason_buf) - 1, "%T", reason);
+        DTRACE3(process_exit_signal, sender_str, receiver_str, reason_buf);
     }
 #endif
 
@@ -8559,8 +8559,8 @@ send_exit_signal(Process *c_p,		/* current process if and only
 	 *    so we drop this signal.
 	 *
 	 *    NOTE: dropping this exit signal is based on the assumption
-	 *	    that the receiver *will* exit; either on the pending
-	 *	    exit or by itself before seeing the pending exit.
+	 *          that the receiver *will* exit; either on the pending
+	 *          exit or by itself before seeing the pending exit.
 	 */
 #else /* !ERTS_SMP */
 	erts_aint32_t state = erts_smp_atomic32_read_nob(&rp->state);
@@ -8712,7 +8712,7 @@ static void doit_exit_monitor(ErtsMonitor *mon, void *vpcontext)
 	    /* else: demonitor while we exited, i.e. do nothing... */
 	    erts_smp_proc_unlock(rp, rp_locks);
 	} else { /* external by pid or name */
-	    ASSERT(is_external_pid(mon->pid));	  
+	    ASSERT(is_external_pid(mon->pid));    
 	    dep = external_pid_dist_entry(mon->pid);
 	    ASSERT(dep != NULL);
 	    if (dep) {
@@ -8896,12 +8896,12 @@ erts_do_exit_process(Process* p, Eterm reason)
 
 #ifdef USE_VM_PROBES
     if (DTRACE_ENABLED(process_exit)) {
-	DTRACE_CHARBUF(process_buf, DTRACE_TERM_BUF_SIZE);
-	DTRACE_CHARBUF(reason_buf, DTRACE_TERM_BUF_SIZE);
+        DTRACE_CHARBUF(process_buf, DTRACE_TERM_BUF_SIZE);
+        DTRACE_CHARBUF(reason_buf, DTRACE_TERM_BUF_SIZE);
 
-	dtrace_proc_str(p, process_buf);
-	erts_snprintf(reason_buf, DTRACE_TERM_BUF_SIZE - 1, "%T", reason);
-	DTRACE2(process_exit, process_buf, reason_buf);
+        dtrace_proc_str(p, process_buf);
+        erts_snprintf(reason_buf, DTRACE_TERM_BUF_SIZE - 1, "%T", reason);
+        DTRACE2(process_exit, process_buf, reason_buf);
     }
 #endif
 
@@ -9162,10 +9162,10 @@ erts_continue_exit_process(Process *p)
     }
 
     if (scb)
-	erts_free(ERTS_ALC_T_CALLS_BUF, (void *) scb);
+        erts_free(ERTS_ALC_T_CALLS_BUF, (void *) scb);
 
     if (pbt)
-	erts_free(ERTS_ALC_T_BPD, (void *) pbt);
+        erts_free(ERTS_ALC_T_BPD, (void *) pbt);
 
     delete_process(p);
 
@@ -9287,7 +9287,7 @@ erts_stack_dump(int to, void *to_arg, Process *p)
     }
     erts_program_counter_info(to, to_arg, p);
     for (sp = p->stop; sp < STACK_START(p); sp++) {
-	yreg = stack_element_dump(to, to_arg, p, sp, yreg);
+        yreg = stack_element_dump(to, to_arg, p, sp, yreg);
     }
 }
 
@@ -9324,17 +9324,17 @@ print_function_from_pc(int to, void *to_arg, BeamInstr* x)
 {
     BeamInstr* addr = find_function_from_pc(x);
     if (addr == NULL) {
-	if (x == beam_exit) {
-	    erts_print(to, to_arg, "<terminate process>");
-	} else if (x == beam_continue_exit) {
-	    erts_print(to, to_arg, "<continue terminate process>");
-	} else if (x == beam_apply+1) {
-	    erts_print(to, to_arg, "<terminate process normally>");
+        if (x == beam_exit) {
+            erts_print(to, to_arg, "<terminate process>");
+        } else if (x == beam_continue_exit) {
+            erts_print(to, to_arg, "<continue terminate process>");
+        } else if (x == beam_apply+1) {
+            erts_print(to, to_arg, "<terminate process normally>");
 	} else if (x == 0) {
-	    erts_print(to, to_arg, "invalid");
-	} else {
-	    erts_print(to, to_arg, "unknown function");
-	}
+            erts_print(to, to_arg, "invalid");
+        } else {
+            erts_print(to, to_arg, "unknown function");
+        }
     } else {
 	erts_print(to, to_arg, "%T:%T/%d + %d",
 		   addr[0], addr[1], addr[2], ((x-addr)-2) * sizeof(Eterm));
@@ -9347,23 +9347,23 @@ stack_element_dump(int to, void *to_arg, Process* p, Eterm* sp, int yreg)
     Eterm x = *sp;
 
     if (yreg < 0 || is_CP(x)) {
-	erts_print(to, to_arg, "\n%p ", sp);
+        erts_print(to, to_arg, "\n%p ", sp);
     } else {
-	char sbuf[16];
-	sprintf(sbuf, "y(%d)", yreg);
-	erts_print(to, to_arg, "%-8s ", sbuf);
-	yreg++;
+        char sbuf[16];
+        sprintf(sbuf, "y(%d)", yreg);
+        erts_print(to, to_arg, "%-8s ", sbuf);
+        yreg++;
     }
 
     if (is_CP(x)) {
-	erts_print(to, to_arg, "Return addr %p (", (Eterm *) EXPAND_POINTER(x));
-	print_function_from_pc(to, to_arg, cp_val(x));
-	erts_print(to, to_arg, ")\n");
-	yreg = 0;
+        erts_print(to, to_arg, "Return addr %p (", (Eterm *) EXPAND_POINTER(x));
+        print_function_from_pc(to, to_arg, cp_val(x));
+        erts_print(to, to_arg, ")\n");
+        yreg = 0;
     } else if is_catch(x) {
-	erts_print(to, to_arg, "Catch %p (", catch_pc(x));
-	print_function_from_pc(to, to_arg, catch_pc(x));
-	erts_print(to, to_arg, ")\n");
+        erts_print(to, to_arg, "Catch %p (", catch_pc(x));
+        print_function_from_pc(to, to_arg, catch_pc(x));
+        erts_print(to, to_arg, ")\n");
     } else {
 	erts_print(to, to_arg, "%T\n", x);
     }
@@ -9371,8 +9371,8 @@ stack_element_dump(int to, void *to_arg, Process* p, Eterm* sp, int yreg)
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *\
- * The processes/0 BIF implementation.					     *
-\*									     */
+ * The processes/0 BIF implementation.                                       *
+\*                                                                           */
 
 
 #define ERTS_PROCESSES_BIF_TAB_INSPECT_INDICES_PER_RED 25
@@ -9959,7 +9959,7 @@ processes_bif_engine(Process *p, Eterm *res_accp, Binary *mbp)
 	    }
 
 	    if (free_term_procs) {
-		ERTS_PROCS_ASSERT(free_list);
+ 		ERTS_PROCS_ASSERT(free_list);
 		saved_term_procs.start = tpep;
 		if (!tpep)
 		    saved_term_procs.end = NULL;
@@ -10133,13 +10133,13 @@ BIF_RETTYPE processes_0(BIF_ALIST_0)
 {
     /*
      * A requirement: The list of pids returned should be a consistent
-     *		      snapshot of all processes existing at some point
-     *		      in time during the execution of processes/0. Since
-     *		      processes might terminate while processes/0 is
-     *		      executing, we have to keep track of terminated
-     *		      processes and add them to the result. We also
-     *		      ignore processes created after processes/0 has
-     *		      begun executing.
+     *                snapshot of all processes existing at some point
+     *                in time during the execution of processes/0. Since
+     *                processes might terminate while processes/0 is
+     *                executing, we have to keep track of terminated
+     *                processes and add them to the result. We also
+     *                ignore processes created after processes/0 has
+     *                begun executing.
      */
     Eterm res_acc = NIL;
     Binary *mbp = erts_create_magic_binary(sizeof(ErtsProcessesBifData),
@@ -10428,8 +10428,8 @@ debug_processes_assert_error(char* expr, char* file, int line)
 
 #endif
 
-/*									     *\
- * End of the processes/0 BIF implementation.				     *
+/*                                                                           *\
+ * End of the processes/0 BIF implementation.                                *
 \* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 /*

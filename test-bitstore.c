@@ -125,6 +125,6 @@ int main ()
     }
     PRALL;
   }
-  // DESTROY_BISTORE(b);
+  // DESTROY_BITSTORE(b);
   return 0;
 }

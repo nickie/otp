@@ -72,7 +72,6 @@ ErlHeapFragment*
 new_message_buffer(Uint size)
 {
     ErlHeapFragment* bp;
-
     bp = (ErlHeapFragment*) ERTS_HEAP_ALLOC(ERTS_ALC_T_HEAP_FRAG,
 					    ERTS_HEAP_FRAG_SIZE(size));
     ERTS_INIT_HEAP_FRAG(bp, size);
@@ -296,7 +295,7 @@ erts_msg_distext2heap(Process *pp,
     if (*bpp) {
 	free_message_buffer(*bpp);
 	*bpp = NULL;
-    }	 
+    }    
     else if (hp) {
 	HRelease(pp, hp_end, hp);
     }
@@ -360,19 +359,19 @@ erts_queue_dist_message(Process *rcvr,
 	msg = erts_msg_distext2heap(rcvr, rcvr_locks, &mbuf, &token, dist_ext);
 	if (is_value(msg))
 #ifdef USE_VM_PROBES
-	    if (DTRACE_ENABLED(message_queued)) {
-		DTRACE_CHARBUF(receiver_name, DTRACE_TERM_BUF_SIZE);
+            if (DTRACE_ENABLED(message_queued)) {
+                DTRACE_CHARBUF(receiver_name, DTRACE_TERM_BUF_SIZE);
 
-		dtrace_proc_str(rcvr, receiver_name);
-		if (token != NIL && token != am_have_dt_utag) {
-		    tok_label = signed_val(SEQ_TRACE_T_LABEL(token));
-		    tok_lastcnt = signed_val(SEQ_TRACE_T_LASTCNT(token));
-		    tok_serial = signed_val(SEQ_TRACE_T_SERIAL(token));
-		}
-		DTRACE6(message_queued,
-			receiver_name, size_object(msg), rcvr->msg.len,
-			tok_label, tok_lastcnt, tok_serial);
-	    }
+                dtrace_proc_str(rcvr, receiver_name);
+                if (token != NIL && token != am_have_dt_utag) {
+                    tok_label = signed_val(SEQ_TRACE_T_LABEL(token));
+                    tok_lastcnt = signed_val(SEQ_TRACE_T_LASTCNT(token));
+                    tok_serial = signed_val(SEQ_TRACE_T_SERIAL(token));
+                }
+                DTRACE6(message_queued,
+                        receiver_name, size_object(msg), rcvr->msg.len,
+                        tok_label, tok_lastcnt, tok_serial);
+            }
 #endif
 	    erts_queue_message(rcvr, rcvr_locks, mbuf, msg, token
 #ifdef USE_VM_PROBES
@@ -397,22 +396,22 @@ erts_queue_dist_message(Process *rcvr,
 	mp->next = NULL;
 
 #ifdef USE_VM_PROBES
-	if (DTRACE_ENABLED(message_queued)) {
-	    DTRACE_CHARBUF(receiver_name, DTRACE_TERM_BUF_SIZE);
+        if (DTRACE_ENABLED(message_queued)) {
+            DTRACE_CHARBUF(receiver_name, DTRACE_TERM_BUF_SIZE);
 
-	    dtrace_proc_str(rcvr, receiver_name);
-	    if (token != NIL && token != am_have_dt_utag) {
-		tok_label = signed_val(SEQ_TRACE_T_LABEL(token));
-		tok_lastcnt = signed_val(SEQ_TRACE_T_LASTCNT(token));
-		tok_serial = signed_val(SEQ_TRACE_T_SERIAL(token));
-	    }
-	    /*
-	     * TODO: We don't know the real size of the external message here.
-	     *	     -1 will appear to a D script as 4294967295.
-	     */
-	    DTRACE6(message_queued, receiver_name, -1, rcvr->msg.len + 1,
-		    tok_label, tok_lastcnt, tok_serial);
-	}
+            dtrace_proc_str(rcvr, receiver_name);
+            if (token != NIL && token != am_have_dt_utag) {
+                tok_label = signed_val(SEQ_TRACE_T_LABEL(token));
+                tok_lastcnt = signed_val(SEQ_TRACE_T_LASTCNT(token));
+                tok_serial = signed_val(SEQ_TRACE_T_SERIAL(token));
+            }
+            /*
+             * TODO: We don't know the real size of the external message here.
+             *       -1 will appear to a D script as 4294967295.
+             */
+            DTRACE6(message_queued, receiver_name, -1, rcvr->msg.len + 1,
+                    tok_label, tok_lastcnt, tok_serial);
+        }
 #endif
 	mp->data.dist_ext = dist_ext;
 	LINK_MESSAGE(rcvr, mp);
@@ -519,20 +518,20 @@ queue_message(Process *c_p,
 
 #ifdef USE_VM_PROBES
     if (DTRACE_ENABLED(message_queued)) {
-	DTRACE_CHARBUF(receiver_name, DTRACE_TERM_BUF_SIZE);
-	Sint tok_label = 0;
-	Sint tok_lastcnt = 0;
-	Sint tok_serial = 0;
+        DTRACE_CHARBUF(receiver_name, DTRACE_TERM_BUF_SIZE);
+        Sint tok_label = 0;
+        Sint tok_lastcnt = 0;
+        Sint tok_serial = 0;
 
-	dtrace_proc_str(receiver, receiver_name);
-	if (seq_trace_token != NIL && is_tuple(seq_trace_token)) {
-	    tok_label = signed_val(SEQ_TRACE_T_LABEL(seq_trace_token));
-	    tok_lastcnt = signed_val(SEQ_TRACE_T_LASTCNT(seq_trace_token));
-	    tok_serial = signed_val(SEQ_TRACE_T_SERIAL(seq_trace_token));
-	}
-	DTRACE6(message_queued,
-		receiver_name, size_object(message), receiver->msg.len,
-		tok_label, tok_lastcnt, tok_serial);
+        dtrace_proc_str(receiver, receiver_name);
+        if (seq_trace_token != NIL && is_tuple(seq_trace_token)) {
+            tok_label = signed_val(SEQ_TRACE_T_LABEL(seq_trace_token));
+            tok_lastcnt = signed_val(SEQ_TRACE_T_LASTCNT(seq_trace_token));
+            tok_serial = signed_val(SEQ_TRACE_T_SERIAL(seq_trace_token));
+        }
+        DTRACE6(message_queued,
+                receiver_name, size_object(message), receiver->msg.len,
+                tok_label, tok_lastcnt, tok_serial);
     }
 #endif
 
@@ -649,7 +648,7 @@ erts_move_msg_mbuf_to_heap(Eterm** hpp, ErlOffHeap* off_heap, ErlMessage *msg)
 #ifdef USE_VM_PROBES
     dbg_utag = copy_struct(utag, dbg_utag_sz, &dbg_hp, &dbg_bp->off_heap);
 #endif
-    dbg_thp_start = *hpp;
+   dbg_thp_start = *hpp;
 #endif
 
     if (bp->next != NULL) {
@@ -938,13 +937,13 @@ erts_send_message(Process* sender,
 
  #ifdef USE_VM_PROBES
     *sender_name = *receiver_name = '\0';
-    if (DTRACE_ENABLED(message_send)) {
-	erts_snprintf(sender_name, sizeof(sender_name), "%T", sender->id);
-	erts_snprintf(receiver_name, sizeof(receiver_name), "%T", receiver->id);
+   if (DTRACE_ENABLED(message_send)) {
+        erts_snprintf(sender_name, sizeof(sender_name), "%T", sender->id);
+        erts_snprintf(receiver_name, sizeof(receiver_name), "%T", receiver->id);
     }
 #endif
     if (SEQ_TRACE_TOKEN(sender) != NIL && !(flags & ERTS_SND_FLG_NO_SEQ_TRACE)) {
-	Eterm* hp;
+        Eterm* hp;
 	Eterm stoken = SEQ_TRACE_TOKEN(sender);
 	Uint seq_trace_size = 0;
 #ifdef USE_VM_PROBES
@@ -980,7 +979,7 @@ erts_send_message(Process* sender,
 				);
 	hp = bp->mem;
 
-	BM_SWAP_TIMER(send,copy);
+        BM_SWAP_TIMER(send,copy);
 	token = copy_struct(stoken,
 			    seq_trace_size,
 			    &hp,
@@ -997,11 +996,11 @@ erts_send_message(Process* sender,
 #endif
 	}
 #endif
-	BM_MESSAGE_COPIED(msize);
-	BM_SWAP_TIMER(copy,send);
+        BM_MESSAGE_COPIED(msize);
+        BM_SWAP_TIMER(copy,send);
 
 #ifdef USE_VM_PROBES
-	if (DTRACE_ENABLED(message_send)) {
+        if (DTRACE_ENABLED(message_send)) {
 	    if (stoken != NIL && stoken != am_have_dt_utag) {
 		tok_label = signed_val(SEQ_TRACE_T_LABEL(stoken));
 		tok_lastcnt = signed_val(SEQ_TRACE_T_LASTCNT(stoken));
@@ -1009,9 +1008,9 @@ erts_send_message(Process* sender,
 	    }
 	    DTRACE6(message_send, sender_name, receiver_name,
 		    msize, tok_label, tok_lastcnt, tok_serial);
-	}
+        }
 #endif
-	erts_queue_message(receiver,
+        erts_queue_message(receiver,
 			   receiver_locks,
 			   bp,
 			   message,
@@ -1020,42 +1019,42 @@ erts_send_message(Process* sender,
 			   , utag
 #endif
 			   );
-	BM_SWAP_TIMER(send,system);
+        BM_SWAP_TIMER(send,system);
 #ifdef HYBRID
     } else {
-	ErlMessage* mp = message_alloc();
-	BM_SWAP_TIMER(send,copy);
+        ErlMessage* mp = message_alloc();
+        BM_SWAP_TIMER(send,copy);
 #ifdef INCREMENTAL
-	/* TODO: During GC activate processes if the message relies in
-	 * the fromspace and the sender is active. During major
-	 * collections add the message to the gray stack if it relies
-	 * in the old generation and the sender is active and the
-	 * receiver is inactive.
+        /* TODO: During GC activate processes if the message relies in
+         * the fromspace and the sender is active. During major
+         * collections add the message to the gray stack if it relies
+         * in the old generation and the sender is active and the
+         * receiver is inactive.
 
-	if (!IS_CONST(message) && (ma_gc_flags & GC_CYCLE) &&
-	    (ptr_val(message) >= inc_fromspc &&
-	    ptr_val(message) < inc_fromend) && INC_IS_ACTIVE(sender))
-	    INC_ACTIVATE(receiver);
-	else if (!IS_CONST(message) && (ma_gc_flags & GC_CYCLE) &&
-	    (ptr_val(message) >= global_old_heap &&
-	    ptr_val(message) < global_old_hend) &&
-	    INC_IS_ACTIVE(sender) && !INC_IS_ACTIVE(receiver))
-	    Mark message in blackmap and add it to the gray stack
-	*/
+        if (!IS_CONST(message) && (ma_gc_flags & GC_CYCLE) &&
+            (ptr_val(message) >= inc_fromspc &&
+            ptr_val(message) < inc_fromend) && INC_IS_ACTIVE(sender))
+            INC_ACTIVATE(receiver);
+        else if (!IS_CONST(message) && (ma_gc_flags & GC_CYCLE) &&
+            (ptr_val(message) >= global_old_heap &&
+            ptr_val(message) < global_old_hend) &&
+            INC_IS_ACTIVE(sender) && !INC_IS_ACTIVE(receiver))
+            Mark message in blackmap and add it to the gray stack
+        */
 
-	 if (!IS_CONST(message))
-	    INC_ACTIVATE(receiver);
+         if (!IS_CONST(message))
+            INC_ACTIVATE(receiver);
 #endif
-	LAZY_COPY(sender,message);
-	BM_SWAP_TIMER(copy,send);
-	DTRACE6(message_send, sender_name, receiver_name,
-		size_object(message)msize, tok_label, tok_lastcnt, tok_serial);
-	ERL_MESSAGE_TERM(mp) = message;
-	ERL_MESSAGE_TOKEN(mp) = NIL;
+        LAZY_COPY(sender,message);
+        BM_SWAP_TIMER(copy,send);
+        DTRACE6(message_send, sender_name, receiver_name,
+                size_object(message)msize, tok_label, tok_lastcnt, tok_serial);
+        ERL_MESSAGE_TERM(mp) = message;
+        ERL_MESSAGE_TOKEN(mp) = NIL;
 #ifdef USE_VM_PROBES
 	ERL_MESSAGE_DT_UTAG(mp) = NIL;
 #endif
-	mp->next = NULL;
+        mp->next = NULL;
 	LINK_MESSAGE(receiver, mp);
         ACTIVATE(receiver);
 
@@ -1089,8 +1088,8 @@ erts_send_message(Process* sender,
 	{
 	    ErlMessage* mp = message_alloc();
 
-	    DTRACE6(message_send, sender_name, receiver_name,
-		    size_object(message), tok_label, tok_lastcnt, tok_serial);
+            DTRACE6(message_send, sender_name, receiver_name,
+                    size_object(message), tok_label, tok_lastcnt, tok_serial);
 	    mp->data.attached = NULL;
 	    ERL_MESSAGE_TERM(mp) = message;
 	    ERL_MESSAGE_TOKEN(mp) = NIL;
@@ -1114,7 +1113,7 @@ erts_send_message(Process* sender,
 		trace_receive(receiver, message);
 	    }
 	}
-	BM_SWAP_TIMER(send,system);
+        BM_SWAP_TIMER(send,system);
 	return;
     } else {
 #ifdef ERTS_SMP
@@ -1159,31 +1158,31 @@ erts_send_message(Process* sender,
 #ifdef USE_VM_PROBES
 		      , NIL
 #endif
-		     );
+	    );
         BM_SWAP_TIMER(send,system);
 #else
 	ErlMessage* mp = message_alloc();
-	Eterm *hp;
+        Eterm *hp;
 #ifdef NICKIE_SHCOPY_SEND
 	unsigned shflags = (flags & ERTS_SND_FLG_SHCOPY_MASK) >> ERTS_SND_FLG_SHCOPY_SHIFT;
 	DECLARE_INFO(info);
 #endif
-	BM_SWAP_TIMER(send,size);
+        BM_SWAP_TIMER(send,size);
 #ifdef NICKIE_SHCOPY_SEND
 	msize = copy_shared_calculate(message, &info, shflags);
 #else
 	msize = size_object(message);
 #endif
-	BM_SWAP_TIMER(size,send);
+        BM_SWAP_TIMER(size,send);
 	
 	if (receiver->stop - receiver->htop <= msize) {
-	    BM_SWAP_TIMER(send,system);
+            BM_SWAP_TIMER(send,system);
 	    erts_garbage_collect(receiver, msize, receiver->arg_reg, receiver->arity);
-	    BM_SWAP_TIMER(system,send);
+            BM_SWAP_TIMER(system,send);
 	}
 	hp = receiver->htop;
 	receiver->htop = hp + msize;
-	BM_SWAP_TIMER(send,copy);
+        BM_SWAP_TIMER(send,copy);
 #ifdef NICKIE_SHCOPY_SEND
 	message = copy_shared_perform(message, msize, &info, &hp, &receiver->off_heap, shflags);
 	DESTROY_INFO(info);
@@ -1191,9 +1190,9 @@ erts_send_message(Process* sender,
 	message = copy_struct(message, msize, &hp, &receiver->off_heap);
 #endif
 	BM_MESSAGE_COPIED(msize);
-	BM_SWAP_TIMER(copy,send);
-	DTRACE6(message_send, sender_name, receiver_name,
-		(uint32_t)msize, tok_label, tok_lastcnt, tok_serial);
+        BM_SWAP_TIMER(copy,send);
+        DTRACE6(message_send, sender_name, receiver_name,
+                (uint32_t)msize, tok_label, tok_lastcnt, tok_serial);
 	ERL_MESSAGE_TERM(mp) = message;
 	ERL_MESSAGE_TOKEN(mp) = NIL;
 #ifdef USE_VM_PROBES
@@ -1208,7 +1207,7 @@ erts_send_message(Process* sender,
 	if (IS_TRACED_FL(receiver, F_TRACE_RECEIVE)) {
 	    trace_receive(receiver, message);
 	}
-	BM_SWAP_TIMER(send,system);
+        BM_SWAP_TIMER(send,system);
 #endif /* #ifndef ERTS_SMP */
 #endif /* HYBRID */
     }

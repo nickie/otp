@@ -125,7 +125,7 @@ def fun_gc (pid, entry, data):
         pass
     if verbose:
         print "[pid={0}] GC results".format(pid)
-        print "  may have collected", 
+        print "  may have collected",
         for ptr in my_obj_list:
             print "{0:x}".format(ptr),
         print
@@ -324,7 +324,7 @@ def parse_message(msg):
 	    rest = msg[n:]
 	    d = []
 	    for wtype in info:
-            	if wtype == "term":
+                if wtype == "term":
                     d.append(rest)
 		    break
 	        words = rest.split(None, 1)
