@@ -826,6 +826,15 @@ do {									\
     }									\
 } while(0)
 
+#define EQUEUE_PUT_UNCHECKED(s, x)					\
+do {									\
+    EQUE_CONCAT(s,_possibly_empty) = 0;					\
+    *EQUE_CONCAT(s,_back) = (x);					\
+    if (++EQUE_CONCAT(s,_back) == EQUE_CONCAT(s,_end)) {		\
+	EQUE_CONCAT(s,_back) = EQUE_CONCAT(s,_start);			\
+    }									\
+} while(0)
+
 #define EQUEUE_PUT(s, x)						\
 do {									\
     if (EQUE_CONCAT(s,_back) == EQUE_CONCAT(s,_front) &&		\
@@ -833,11 +842,7 @@ do {									\
 	erl_grow_queue(&EQUE_CONCAT(s,_start), &EQUE_CONCAT(s,_front),	\
 		       &EQUE_CONCAT(s,_back), &EQUE_CONCAT(s,_end));	\
     }									\
-    EQUE_CONCAT(s,_possibly_empty) = 0;					\
-    *EQUE_CONCAT(s,_back) = (x);					\
-    if (++EQUE_CONCAT(s,_back) == EQUE_CONCAT(s,_end)) {		\
-	EQUE_CONCAT(s,_back) = EQUE_CONCAT(s,_start);			\
-    }									\
+    EQUEUE_PUT_UNCHECKED(s, x);						\
 } while(0)
 
 #define EQUEUE_ISEMPTY(s)						\
@@ -996,12 +1001,10 @@ void erl_error(char*, va_list);
 #if defined(NICKIE_SHCOPY_SEND) \
  || defined(NICKIE_SHCOPY_SPAWN)
 #define NICKIE_SHCOPY
-#define NICKIE_SHCOPY_DEBUG
+#undef NICKIE_SHCOPY_DEBUG
 #endif
 
-extern int flag_copy_shared;
 #define VERBOSE_DEBUG(...) do {		\
-  if (flag_copy_shared)			\
     erts_fprintf(stderr, __VA_ARGS__);	\
   } while(0)
 

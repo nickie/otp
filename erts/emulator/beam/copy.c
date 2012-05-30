@@ -32,10 +32,6 @@
 #include "erl_bits.h"
 #include "dtrace-wrapper.h"
 
-#undef NICKIE_SHCOPY_DEBUG
-// this controls if copy_shared is used rightaway or after it's explicitly called
-int flag_copy_shared = 1;
-
 #ifdef HYBRID
 MA_STACK_DECLARE(src);
 MA_STACK_DECLARE(dst);
@@ -259,7 +255,7 @@ do {									    \
 #define INHEAP_SIMPLE(p, ptr) (					\
     (HEAP_START(p) <= ptr && ptr < HEAP_END(p)) ||		\
     (OLD_HEAP(p) && OLD_HEAP(p) <= ptr && ptr < OLD_HEND(p))	\
-								)
+  )
 #define INHEAP(p, ptr) (					\
     INHEAP_SIMPLE(p, ptr) ||					\
     (force_local ? (force_local = 0, 1) : 0)			\
@@ -472,7 +468,7 @@ cleanup:
 	    }
 	    /* and its children too */
 	    if (!IS_CONST(head)) {
-		EQUEUE_PUT(s, head);
+		EQUEUE_PUT_UNCHECKED(s, head);
 	    }
 	    obj = tail;
 	    break;
@@ -503,7 +499,7 @@ cleanup:
 		while (arity-- > 0) {
 		    obj = *++ptr;
 		    if (!IS_CONST(obj)) {
-			EQUEUE_PUT(s, obj);
+			EQUEUE_PUT_UNCHECKED(s, obj);
 		    }
 		}
 		goto cleanup_next;
@@ -516,7 +512,7 @@ cleanup:
 		while (eterms-- > 0) {
 		    obj = *ptr++;
 		    if (!IS_CONST(obj)) {
-			EQUEUE_PUT(s, obj);
+			EQUEUE_PUT_UNCHECKED(s, obj);
 		    }
 		}
 		goto cleanup_next;
@@ -973,7 +969,7 @@ Uint copy_shared_calculate(Eterm obj, shcopy_info *info, unsigned flags)
 	return 0;
 
     myself = erts_get_current_process();
-    if (myself == NULL || !flag_copy_shared || (flags & ERTS_SHCOPY_FLG_NONE))
+    if (myself == NULL || (flags & ERTS_SHCOPY_FLG_NONE))
 	return size_object(obj);
 
 #ifdef NICKIE_SHCOPY_DEBUG
@@ -1075,8 +1071,6 @@ Uint copy_shared_calculate(Eterm obj, shcopy_info *info, unsigned flags)
 	    if (!INHEAP(myself, ptr)) {
 #ifdef NICKIE_SHCOPY_DEBUG
 		VERBOSE_DEBUG("[pid=%T] bypassed copying %p is %T\n", myself->id, ptr, obj);
-		if (myself->mbuf != NULL)
-		    VERBOSE_DEBUG("[pid=%T] BUT !!! there are message buffers!\n", myself->id);
 #endif
 		VERBOSE(DEBUG_NICKIE, ("#"));
 		goto pop_next;
@@ -1241,7 +1235,7 @@ Uint copy_shared_perform(Eterm obj, Uint size, shcopy_info *info, Eterm** hpp, E
 	return obj;
 
     myself = erts_get_current_process();
-    if (myself == NULL || !flag_copy_shared || (flags & ERTS_SHCOPY_FLG_NONE))
+    if (myself == NULL || (flags & ERTS_SHCOPY_FLG_NONE))
 	return copy_struct(obj, size, hpp, off_heap);
 
 #ifdef NICKIE_SHCOPY_DEBUG
@@ -1339,7 +1333,7 @@ Uint copy_shared_perform(Eterm obj, Uint size, shcopy_info *info, Eterm** hpp, E
 	    if (IS_CONST(head)) {
 		CAR(hp) = head;
 	    } else {
-		EQUEUE_PUT(s, head);
+		EQUEUE_PUT_UNCHECKED(s, head);
 		CAR(hp) = HEAP_ELEM_TO_BE_FILLED;
 	    }
 	    *resp = make_list(hp);
@@ -1403,7 +1397,7 @@ Uint copy_shared_perform(Eterm obj, Uint size, shcopy_info *info, Eterm** hpp, E
 		    if (IS_CONST(obj)) {
 			*hp++ = obj;
 		    } else {
-			EQUEUE_PUT(s, obj);
+			EQUEUE_PUT_UNCHECKED(s, obj);
 			*hp++ = HEAP_ELEM_TO_BE_FILLED;
 		    }
 		}
@@ -1427,7 +1421,7 @@ Uint copy_shared_perform(Eterm obj, Uint size, shcopy_info *info, Eterm** hpp, E
 		    if (IS_CONST(obj)) {
 			*hp++ = obj;
 		    } else {
-			EQUEUE_PUT(s, obj);
+			EQUEUE_PUT_UNCHECKED(s, obj);
 			*hp++ = HEAP_ELEM_TO_BE_FILLED;
 		    }
 		}
