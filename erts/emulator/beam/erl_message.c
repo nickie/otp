@@ -1122,7 +1122,8 @@ erts_send_message(Process* sender,
 	erts_aint32_t state;
 #ifdef NICKIE_SHCOPY_SEND
 	unsigned shflags = (flags & ERTS_SND_FLG_SHCOPY_MASK) >> ERTS_SND_FLG_SHCOPY_SHIFT;
-	DECLARE_INFO(info);
+	shcopy_info info;
+	INITIATE_SHCOPY_INFO(info);
 #endif
 	BM_SWAP_TIMER(send,size);
 #ifdef NICKIE_SHCOPY_SEND
@@ -1165,7 +1166,8 @@ erts_send_message(Process* sender,
         Eterm *hp;
 #ifdef NICKIE_SHCOPY_SEND
 	unsigned shflags = (flags & ERTS_SND_FLG_SHCOPY_MASK) >> ERTS_SND_FLG_SHCOPY_SHIFT;
-	DECLARE_INFO(info);
+	shcopy_info info;
+	INITIATE_SHCOPY_INFO(info);
 #endif
         BM_SWAP_TIMER(send,size);
 #ifdef NICKIE_SHCOPY_SEND

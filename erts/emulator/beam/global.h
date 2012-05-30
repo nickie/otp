@@ -1024,10 +1024,12 @@ typedef struct shcopy_info {
     Eterm* shtable_start;
 } shcopy_info;
 
-#define DECLARE_INFO(info)						\
-    shcopy_info info = { {}, info.queue_default, info.queue_default,	\
-			 {}, info.bitstore_default,			\
-			 {}, info.shtable_default }
+#define INITIATE_SHCOPY_INFO(info) do { 		\
+    info.queue_start    = info.queue_default;		\
+    info.queue_end      = info.queue_default;		\
+    info.bitstore_start = info.bitstore_default;	\
+    info.shtable_start  = info.shtable_default; 	\
+} while(0)
 
 #define DESTROY_INFO(info)						\
 do {									\

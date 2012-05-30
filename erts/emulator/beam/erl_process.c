@@ -7527,7 +7527,8 @@ erl_create_process(Process* parent, /* Parent of process (default group leader).
     erts_aint32_t prio = (erts_aint32_t) PRIORITY_NORMAL;
 #ifdef NICKIE_SHCOPY_SPAWN
     unsigned shflags = 0;	/* could be taken from so->flags, if necessary */
-    DECLARE_INFO(info);
+    shcopy_info info;
+    INITIATE_SHCOPY_INFO(info);
 #endif
 
 #ifdef ERTS_SMP

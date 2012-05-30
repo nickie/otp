@@ -95,7 +95,8 @@ erts_debug_copy_shared_1(BIF_ALIST_1)
     Uint size;
     Eterm* hp;
     Eterm copy;
-    DECLARE_INFO(info);
+    shcopy_info info;
+    INITIATE_SHCOPY_INFO(info);
 
     size = copy_shared_calculate(term, &info, 0);
     if (size > 0) {
