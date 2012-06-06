@@ -71,26 +71,72 @@ run(N, [_|L]) -> run(N-1, L).
 timer({N, X}) -> timer(N, X).
 
 timer(N, X) ->
-    io:format("Copying ~P, times ~w, ", [X, 3, N]),
+    io:format("Copying ~p, times ~w, ", [X, N]),
     Opts = [],
     %Opts = [{min_heap_size, 100000000}],
     Parent = self(),
     Worker = fun () -> T = the_test(X),
                        Size = erts_debug:flat_size(T),
-                       {Time, ok} = timer:tc(fun regression/2, [N, T]),
-                       Parent ! {Time, Size}
+                       Stats = timer_stats(15, N, T),
+                       Parent ! {Stats, Size}
              end,
     spawn_opt(Worker, Opts),
     receive
-	{Time, Size} ->
-            io:format("of size ~w, time = ~.6f~n", [Size, Time / 1000000])
+	{Stats, Size} ->
+            io:format("of size ~w~n", [Size]),
+	    pp_stat(Stats)
     end.
 
 the_test({apply, F, Args}) -> apply(?MODULE, F, Args);
+the_test({apply, M, F, Args}) -> apply(M, F, Args);
 the_test(T) -> T.
 
 term_bench(N) -> {_, X} = lists:nth(N, all_tests()),
                  the_test(X).
+
+-record(range, {min, max}).
+
+-record(stat, {range,
+               median,
+               average,
+               stddev}).
+
+timer_stats(M, N, T) when M > 0 ->
+    L = test_loop(M, N, T, []),
+    Length = length(L),
+    S = #stat{range = #range{min = lists:min(L),
+                             max = lists:max(L)},
+              median = lists:nth(round(Length / 2), lists:sort(L)),
+              average = avg(L),
+              stddev = std_dev(L)},
+    S.
+
+test_loop(0, _, _, Results) ->
+    Results;
+test_loop(M, N, T, Results) ->
+    {Time, ok} = timer:tc(fun regression/2, [N, T]),
+    test_loop(M-1, N, T, [Time/1000000 | Results]).  % seconds
+
+avg(L) ->
+    lists:sum(L) / length(L).
+
+std_dev(Values) ->
+    L = length(Values),
+    case L =:= 1 of
+        true -> 0.0; % Executed only once (no deviation).
+        false ->
+            Avg = avg(Values),
+            Sums = lists:foldl(
+                     fun(V, Acc) -> D = V - Avg, Acc + (D * D) end, 0, Values),
+            math:sqrt(Sums / (L - 1))
+    end.
+
+pp_stat(#stat{range   = #range{min=Min,max=Max},
+              median  = Med,
+              average = Avg,
+              stddev  = Stddev}) ->
+    io:format("min=~.6f, max=~.6f, med=~.6f, avg=~.6f, std=~.6f~n",
+              [Min, Max, Med, Avg, Stddev]).
 
 
 % Regression test: copy term T (that does not share anything) N times
@@ -123,33 +169,34 @@ receiver_aux(Parent, N) ->
 all_tests() ->
     lists:concat([
       % big terms just once
-      [{1, X} || X <- [{apply, mklist, [25]},             %size 134217724
-                       {apply, mktuple, [25]},            %size 100663293
-                       {apply, mkfunny, [50]},            %size 301989829
-                       {apply, mkimfunny1, [50]},         %size 129604984
-                       {apply, mkimfunny2, [32]},         %size 109176439
-                       {apply, mkimfunny3, [24]},         %size 224779584
-                       {apply, mkimfunny4, [100000000]},  %size 200000002
-                       {apply, mkimfunny5, [72]},         %size 119853322
-                       {apply, mkcls, [58]}               %size 248522720
+      [{1, X} || X <- [{apply, mklist, [25]},             % 01: size 134217724
+                       {apply, mktuple, [25]},            % 02: size 100663293
+                       {apply, mkfunny, [47]},            % 03: size 100663240
+                       {apply, mkimfunny1, [52]},         % 04: size 129604984
+                       {apply, mkimfunny2, [32]},         % 05: size 109176439
+                       {apply, mkimfunny3, [23]},         % 06: size 112193088
+                       {apply, mkimfunny4, [60000000]},   % 07: size 120000002
+                       {apply, mkimfunny5, [72]},         % 08: size 119853322
+                       {apply, mkcls, [53]}               % 09: size 130516500
                       ]],
       % really small terms extremely many times
-      [{50000000, X} || X <- [42,
-                              [],
-                              ok,
-                              [42],
-                              {42},
-                              <<>>,
-                              <<42>>,
-                              <<17, 42>>]],
+      [{10000000, X} || X <- [42,                         % 10: size 0
+                              [],                         % 11: size 0
+                              ok,                         % 12: size 0
+                              [42],                       % 13: size 2/0
+                              {42},                       % 14: size 2/0
+                              <<>>,                       % 15: size 2/?
+                              <<42>>,                     % 16: size 3/?
+                              <<17, 42>>                  % 17: size 3/?
+                             ]],
       % small terms many times
-      [{10000000, lists:seq(1, 20)},
-       {5000000, mklist(5)},
-       {5000000, mktuple(5)},
-       {2500000, mkcls(3)},
-       {1000000, lists:seq(1, 250)},
-       {500000, mklist(8)},
-       {500000, mktuple(8)},
-       {250000, mkcls(6)}
+      [{10000000, {apply, lists, seq, [1, 20]}},          % 18: size 40
+       { 5000000, {apply, mklist, [5]}},                  % 19: size 124
+       { 5000000, {apply, mktuple, [5]}},                 % 20: size 93
+       { 2500000, {apply, mkcls, [3]}},                   % 21: size 220
+       { 1000000, {apply, lists, seq, [1, 250]}},         % 22: size 500
+       {  500000, {apply, mklist, [8]}},                  % 23: size 1020
+       {  500000, {apply, mktuple, [8]}},                 % 24: size 765
+       {  250000, {apply, mkcls, [6]}}                    % 25: size 1640
       ]
     ]).
