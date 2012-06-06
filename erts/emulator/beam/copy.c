@@ -1137,7 +1137,6 @@ Uint copy_shared_calculate(Eterm obj, shcopy_info *info, unsigned flags)
 		size_t size = sb->size;
 		Uint extra_bytes;
 		Eterm hdr;
-		ASSERT((sb->thing_word & ~BOXED_VISITED_MASK) == HEADER_SUB_BIN);
 		if (bit_size + bit_offset > 8) {
 		    sum += ERL_SUB_BIN_SIZE;
 		    extra_bytes = 2;
@@ -1461,7 +1460,6 @@ Uint copy_shared_perform(Eterm obj, Uint size, shcopy_info *info, Eterm** hpp, E
 		size_t size = sb->size;
 		Uint extra_bytes;
 		Uint real_size;
-		ASSERT((sb->thing_word & ~BOXED_VISITED_MASK) == HEADER_SUB_BIN);
 		if ((bit_size + bit_offset) > 8) {
 		    extra_bytes = 2;
 		} else if ((bit_size + bit_offset) > 0) {
