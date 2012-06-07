@@ -843,11 +843,7 @@ bif erlang:finish_loading/1
 bif erlang:hash/2
 
 #
-# !!! nickie plays here
+# Sharing-aware size
 #
 bif erts_debug:size_shared/1
 bif 'erl.system.debug':size_shared/1	ebif_erts_debug_size_shared_1
-bif erts_debug:copy_shared/1
-bif 'erl.system.debug':copy_shared/1    ebif_erts_debug_copy_shared_1
-bif erts_debug:copy_object/1
-bif 'erl.system.debug':copy_object/1    ebif_erts_debug_copy_object_1
