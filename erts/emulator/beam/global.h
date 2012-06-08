@@ -659,12 +659,68 @@ __decl_noreturn void __noreturn erl_exit(int n, char*, ...);
 __decl_noreturn void __noreturn erl_exit_flush_async(int n, char*, ...);
 void erl_error(char*, va_list);
 
+/* This controls whether sharing-preserving copy is used by Erlang */
+
+#define SHCOPY_SEND
+#define SHCOPY_SPAWN
+
+#if defined(SHCOPY_SEND) \
+ || defined(SHCOPY_SPAWN)
+#define SHCOPY
+/* Use this with care, it is *very* verbose!  Should add a debug flag! */
+#undef SHCOPY_DEBUG
+#endif
+
+#define VERBOSE_DEBUG(...) do {		\
+    erts_fprintf(stderr, __VA_ARGS__);	\
+  } while(0)
+
+#define ERTS_SHCOPY_FLG_MASK	(((unsigned) 3) << 0)
+#define ERTS_SHCOPY_FLG_NONE	(((unsigned) 1) << 0)
+#define ERTS_SHCOPY_FLG_TMP_BUF	(((unsigned) 1) << 1)
+
+/* The persistent state while the sharing-preserving copier works */
+
+typedef struct shcopy_info {
+    Eterm  queue_default[DEF_EQUEUE_SIZE];
+    Eterm* queue_start;
+    Eterm* queue_end;
+    UWord  bitstore_default[DEF_WSTACK_SIZE];
+    UWord* bitstore_start;
+    Eterm  shtable_default[DEF_ESTACK_SIZE];
+    Eterm* shtable_start;
+} shcopy_info;
+
+#define INITIATE_SHCOPY_INFO(info) do { 		\
+    info.queue_start    = info.queue_default;		\
+    info.queue_end      = info.queue_default;		\
+    info.bitstore_start = info.bitstore_default;	\
+    info.shtable_start  = info.shtable_default; 	\
+} while(0)
+
+#define DESTROY_INFO(info)						\
+do {									\
+    if (info.queue_start != info.queue_default) {			\
+	erts_free(ERTS_ALC_T_ESTACK, info.queue_start);			\
+    }									\
+    if (info.bitstore_start != info.bitstore_default) {			\
+	erts_free(ERTS_ALC_T_ESTACK, info.bitstore_start);		\
+    }									\
+    if (info.shtable_start != info.shtable_default) {			\
+	erts_free(ERTS_ALC_T_ESTACK, info.shtable_start);		\
+    }									\
+} while(0)
+
 /* copy.c */
 Eterm copy_object(Eterm, Process*);
+Uint copy_shared_calculate(Eterm, shcopy_info*, unsigned);
+Eterm copy_shared_perform(Eterm, Uint, shcopy_info*, Eterm**, ErlOffHeap*, unsigned);
 
 #if HALFWORD_HEAP
 Uint size_object_rel(Eterm, Eterm*);
 #  define size_object(A) size_object_rel(A,NULL)
+Uint size_shared_rel(Eterm, Eterm*);
+#  define size_shared(A) size_shared_rel(A,NULL)
 
 Eterm copy_struct_rel(Eterm, Uint, Eterm**, ErlOffHeap*, Eterm* src_base, Eterm* dst_base);
 #  define copy_struct(OBJ,SZ,HPP,OH) copy_struct_rel(OBJ,SZ,HPP,OH, NULL,NULL)
@@ -676,6 +732,8 @@ Eterm copy_shallow_rel(Eterm*, Uint, Eterm**, ErlOffHeap*, Eterm* src_base);
 
 Uint size_object(Eterm);
 #  define size_object_rel(A,B) size_object(A)
+Uint size_shared(Eterm);
+#  define size_shared_rel(A,B) size_shared(A)
 
 Eterm copy_struct(Eterm, Uint, Eterm**, ErlOffHeap*);
 #  define copy_struct_rel(OBJ,SZ,HPP,OH, SB,DB) copy_struct(OBJ,SZ,HPP,OH)
@@ -1045,6 +1103,10 @@ erts_alloc_message_heap_state(Uint size,
 	goto allocate_in_mbuf;
 #endif
 
+#ifdef SHCOPY
+    if (size == 0)          // without SHCOPY, size was always > 0
+	return NULL;        // we'll make sure this is never used
+#endif
     if (size > (Uint) INT_MAX)
 	erl_exit(ERTS_ABORT_EXIT, "HUGE size (%beu)\n", size);
 
