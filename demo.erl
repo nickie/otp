@@ -172,9 +172,9 @@ sanity(From, To, Fun) ->
 term_sanity(N) -> X = lists:nth(N, all_tests()), the_test(X).
 
 test(0, [], _)	    -> ok;
-test(0, [X], Fun)   -> T = the_test(X), Fun(T);
-test(0, [X|L], Fun) -> T = the_test(X), Fun(T), test(0, L, Fun);
-test(1, [X|_], Fun) -> T = the_test(X), Fun(T);
+test(0, [X], Fun)   -> Fun(X);
+test(0, [X|L], Fun) -> Fun(X), test(0, L, Fun);
+test(1, [X|_], Fun) -> Fun(X);
 test(N, [_|L], Fun) -> test(N-1, L, Fun).
 
 the_test({apply, F, Args}) -> apply(?MODULE, F, Args);
