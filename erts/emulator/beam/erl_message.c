@@ -72,6 +72,9 @@ new_message_buffer(Uint size)
     bp = (ErlHeapFragment*) ERTS_HEAP_ALLOC(ERTS_ALC_T_HEAP_FRAG,
 					    ERTS_HEAP_FRAG_SIZE(size));
     ERTS_INIT_HEAP_FRAG(bp, size);
+#ifdef SHCOPY_DEBUG
+    VERBOSE_DEBUG("[pid=%T] new message buffer %p\n", erts_get_current_pid(), bp->mem);
+#endif
     return bp;
 }
 
@@ -680,8 +683,15 @@ erts_move_msg_mbuf_to_heap(Eterm** hpp, ErlOffHeap* off_heap, ErlMessage *msg)
 	    break;
 	case TAG_PRIMARY_LIST:
 	case TAG_PRIMARY_BOXED:
+#ifdef SHCOPY
+	    if (in_heapfrag(ptr_val(val), bp))
+		*hp++ = offset_ptr(val, offs);
+	    else
+		*hp++ = val;
+#else
 	    ASSERT(in_heapfrag(ptr_val(val), bp));
 	    *hp++ = offset_ptr(val, offs);
+#endif
 	    break;
 	case TAG_PRIMARY_HEADER:
 	    *hp++ = val;
@@ -843,6 +853,9 @@ erts_msg_attached_data_size_aux(ErlMessage *msg)
 void
 erts_move_msg_attached_data_to_heap(Eterm **hpp, ErlOffHeap *ohp, ErlMessage *msg)
 {
+#ifdef SHCOPY_DEBUG
+    VERBOSE_DEBUG("[pid=%T] moving message buffer %p\n", erts_get_current_pid(), msg->data.heap_frag);
+#endif
     if (is_value(ERL_MESSAGE_TERM(msg)))
 	erts_move_msg_mbuf_to_heap(hpp, ohp, msg);
     else if (msg->data.dist_ext) {
@@ -1032,9 +1045,17 @@ erts_send_message(Process* sender,
 	ErlOffHeap *ohp;
         Eterm *hp;
 	erts_aint32_t state;
-
+#ifdef SHCOPY_SEND
+	unsigned shflags = (flags & ERTS_SND_FLG_SHCOPY_MASK) >> ERTS_SND_FLG_SHCOPY_SHIFT;
+	shcopy_info info;
+	INITIATE_SHCOPY_INFO(info);
+#endif
 	BM_SWAP_TIMER(send,size);
+#ifdef SHCOPY_SEND
+	msize = copy_shared_calculate(message, &info, shflags);
+#else
 	msize = size_object(message);
+#endif
 	BM_SWAP_TIMER(size,send);
 	hp = erts_alloc_message_heap_state(msize,
 					   &bp,
@@ -1043,7 +1064,12 @@ erts_send_message(Process* sender,
 					   receiver_locks,
 					   &state);
 	BM_SWAP_TIMER(send,copy);
+#ifdef SHCOPY_SEND
+	message = copy_shared_perform(message, msize, &info, &hp, ohp, shflags);
+	DESTROY_INFO(info);
+#else
 	message = copy_struct(message, msize, &hp, ohp);
+#endif
 	BM_MESSAGE_COPIED(msz);
 	BM_SWAP_TIMER(copy,send);
         DTRACE6(message_send, sender_name, receiver_name,
@@ -1063,8 +1089,17 @@ erts_send_message(Process* sender,
 #else
 	ErlMessage* mp = message_alloc();
         Eterm *hp;
+#ifdef SHCOPY_SEND
+	unsigned shflags = (flags & ERTS_SND_FLG_SHCOPY_MASK) >> ERTS_SND_FLG_SHCOPY_SHIFT;
+	shcopy_info info;
+	INITIATE_SHCOPY_INFO(info);
+#endif
         BM_SWAP_TIMER(send,size);
+#ifdef SHCOPY_SEND
+	msize = copy_shared_calculate(message, &info, shflags);
+#else
 	msize = size_object(message);
+#endif
         BM_SWAP_TIMER(size,send);
 	
 	if (receiver->stop - receiver->htop <= msize) {
@@ -1075,7 +1110,12 @@ erts_send_message(Process* sender,
 	hp = receiver->htop;
 	receiver->htop = hp + msize;
         BM_SWAP_TIMER(send,copy);
+#ifdef SHCOPY_SEND
+	message = copy_shared_perform(message, msize, &info, &hp, &receiver->off_heap, shflags);
+	DESTROY_INFO(info);
+#else
 	message = copy_struct(message, msize, &hp, &receiver->off_heap);
+#endif
 	BM_MESSAGE_COPIED(msize);
         BM_SWAP_TIMER(copy,send);
         DTRACE6(message_send, sender_name, receiver_name,
@@ -1166,4 +1206,3 @@ erts_deliver_exit_message(Eterm from, Process *to, ErtsProcLocks *to_locksp,
 			   );
     }
 }
-
