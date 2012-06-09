@@ -190,19 +190,22 @@ sanity_report(Term, Pid) ->
 
 sanity_check_report(Msg, X, Real, Flat) ->
     receive
-        {Real, Flat} -> ok;
+        {Real, Flat} ->
+            io:format("OK");
         {WrongReal, WrongFlat} ->
-            io:format("SANITY ERROR:~n"),
+            io:format("~n~nSANITY ERROR:~n"),
             io:format("  when ~s test case ~w~n", [Msg, X]),
             io:format("  real = ~w, in child = ~w~n", [Real, WrongReal]),
             io:format("  flat = ~w, in child = ~w~n", [Flat, WrongFlat])
     end.
 
 sanity_fresh(X) ->
+    io:format("checking ~40P:", [X, 3]),
     T = the_test(X),
     Real = erts_debug:size(T),
     Flat = erts_debug:flat_size(T),
     % checking message sending
+    io:format(" send "),
     Receiver =
         fun () ->
                 receive
@@ -213,12 +216,15 @@ sanity_fresh(X) ->
     Pid ! {T, self()},
     sanity_check_report("sending", X, Real, Flat),
     % checking spawning processes, in arguments
+    io:format(", spawn arg "),
     spawn(?MODULE, sanity_report, [T, self()]),
     sanity_check_report("spawning in arguments", X, Real, Flat),
     % checking spawning processes, in closure
+    io:format(", spawn cls "),
     Myself = self(),
     spawn(fun () -> sanity_report(T, Myself) end),
-    sanity_check_report("spawning in closure", X, Real, Flat).
+    sanity_check_report("spawning in closure", X, Real, Flat),
+    io:format("~n").
 
 sanity_check(X) ->
     case X of
@@ -251,7 +257,7 @@ all_tests() ->
      {apply, mkimfunny2, [20]},
      {apply, mkimfunny3, [20]},
      {apply, mkimfunny4, [1000]},
-     {apply, mkimfunny5, [50]},
+     {apply, mkimfunny5, [30]},
      {apply, mkcls, [10]},
      B1,
      B2,
