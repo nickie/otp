@@ -667,16 +667,6 @@ void erl_error(char*, va_list);
 #if defined(SHCOPY_SEND) \
  || defined(SHCOPY_SPAWN)
 #define SHCOPY
-/* Use this with care, it is *very* verbose!  Should add a debug flag! */
-#undef SHCOPY_DEBUG
-#endif
-
-#ifdef SHCOPY_DEBUG
-#define VERBOSE_DEBUG(...) do {		\
-    erts_fprintf(stderr, __VA_ARGS__);	\
-  } while(0)
-#else
-#define VERBOSE_DEBUG(...)
 #endif
 
 #define ERTS_SHCOPY_FLG_MASK	(((unsigned) 3) << 0)
