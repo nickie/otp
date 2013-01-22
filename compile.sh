@@ -14,7 +14,7 @@ case $WHAT in
         ./otp_build autoconf
         ;&
     configure)
-        ./configure
+        ./configure --enable-sharing-preserving
         ;&
     clean)
         make -j$CORES clean

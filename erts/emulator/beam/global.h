@@ -661,12 +661,17 @@ void erl_error(char*, va_list);
 
 /* This controls whether sharing-preserving copy is used by Erlang */
 
+/* #define SHCOPY_SEND */
+/* #define SHCOPY_SPAWN */
+
+/* #if defined(SHCOPY_SEND) \ */
+/*  || defined(SHCOPY_SPAWN) */
+/* #define SHCOPY */
+/* #endif */
+
+#ifdef SHCOPY
 #define SHCOPY_SEND
 #define SHCOPY_SPAWN
-
-#if defined(SHCOPY_SEND) \
- || defined(SHCOPY_SPAWN)
-#define SHCOPY
 #endif
 
 #define ERTS_SHCOPY_FLG_MASK	(((unsigned) 3) << 0)
