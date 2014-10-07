@@ -25,7 +25,7 @@
 	 t_check_process_code_ets/1,
 	 external_fun/1,get_chunk/1,module_md5/1,make_stub/1,
 	 make_stub_many_funs/1,constant_pools/1,constant_refc_binaries/1,
-	 false_dependency/1,coverage/1,fun_confusion/1]).
+	 false_dependency/1,coverage/1,fun_confusion/1,shcopy_confusion/1]).
 
 -define(line_trace, 1).
 -include_lib("test_server/include/test_server.hrl").
@@ -749,6 +749,67 @@ compile_load(Mod, Src, Ver) ->
     {ok,Mod,Code1} = compile:file(Src, [binary,{d,version,Ver}]),
     {module,Mod} = code:load_binary(Mod, "fun_confusion.beam", Code1),
     ok.
+
+
+%% Make sure that the sharing preserving copying of terms does not break
+%% module unloading
+shcopy_confusion(Config) when is_list(Config) ->
+    V1 = compile_module_with_constants(1, Config),
+    {ok, CX1, CU1, CS1} = load_module_with_constants(V1),
+    1 = check_module_with_constants(CX1),
+    1 = check_module_with_constants(CU1),
+    1 = check_module_with_constants(CS1),
+
+    true = erlang:delete_module(module_with_constants),
+    true = erlang:purge_module(module_with_constants),
+    1 = check_module_with_constants(CX1),
+    1 = check_module_with_constants(CU1),
+    1 = check_module_with_constants(CS1),
+    
+    V2 = compile_module_with_constants(2, Config),
+    {ok, CX2, CU2, CS2} = load_module_with_constants(V2),
+    2 = check_module_with_constants(CX2),
+    2 = check_module_with_constants(CU2),
+    2 = check_module_with_constants(CS2),
+    N1 = check_module_with_constants(CX1),
+    N2 = check_module_with_constants(CU1),
+    N3 = check_module_with_constants(CS1),
+    case {N1, N2, N3} of
+        {1, 1, 1} ->
+            ok;
+        Reason ->
+            {failed, Reason}
+    end.
+
+compile_module_with_constants(Version, Config) ->
+    Data = ?config(data_dir, Config),
+    File = filename:join(Data, "module_with_constants"),
+    {ok,module_with_constants,Code} =
+        compile:file(File, [{d,'VERSION',Version},binary,report]),
+    Code.
+
+load_module_with_constants(Code) ->
+    case erlang:load_module(module_with_constants, Code) of
+	{module,module_with_constants} ->
+	    CX = module_with_constants:get_a_constant(),
+	    CU = module_with_constants:get_a_term_with_unshared_constants(3),
+	    CS = module_with_constants:get_a_term_with_shared_constants(3),
+	    {ok, CX, CU, CS};
+	Error ->
+	    Error
+    end.
+
+check_module_with_constants([{magic, Version, constant}, 1, 2, 7, 17, 42]) ->
+    Version;
+check_module_with_constants([H | T]) when is_list(H) ->
+    Version = check_module_with_constants(H),
+    Version = check_module_with_constants(T),
+    Version;
+check_module_with_constants([_ | T]) ->
+    check_module_with_constants(T);
+check_module_with_constants(_) ->
+    error.
+    
 
 %% Utilities.
 
